@@ -513,6 +513,25 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('pageshow', (e) => { if (e.persisted) refresh(); });
 
+/* ---------- เปลี่ยนหน้าให้สมูท ---------- */
+// ชื่อแอปบนการ์ดที่กดเท่านั้นที่ได้ view-transition-name (ห้ามซ้ำในหน้า) แล้วเลื่อนไปเป็นหัวข้อของแอป
+document.addEventListener('click', (e) => {
+  const card = e.target.closest('a.app');
+  if (!card) return;
+  document.querySelectorAll('.app-name').forEach((n) => { n.style.viewTransitionName = ''; });
+  const name = card.querySelector('.app-name');
+  if (name) name.style.viewTransitionName = 'app-title';
+}, true);
+// โหลดหน้าแอปเก็บไว้ล่วงหน้า กดแล้วเปิดได้ทันที
+for (const a of APPS) {
+  for (const href of [a.path, `${a.path}styles.css`, `${a.path}app.js`]) {
+    const l = document.createElement('link');
+    l.rel = 'prefetch';
+    l.href = href;
+    document.head.appendChild(l);
+  }
+}
+
 /* ---------- เริ่ม ---------- */
 // ข้อความคงที่ในหน้า HTML ดึงจาก messages.js
 $('.orb-hint').textContent = M.orbHint;
