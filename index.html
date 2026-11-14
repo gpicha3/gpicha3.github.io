@@ -15,6 +15,7 @@
   <link rel="apple-touch-icon" href="/icons/icon-180.png">
   <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css">
+  <script src="/alpha-theme.js"></script>
 </head>
 <body>
   <div class="aurora" aria-hidden="true"></div>
@@ -89,7 +90,10 @@
       <button type="button" class="back" id="settingsBack" aria-label="กลับ"><svg viewBox="0 0 8 14"><path d="M6.5 1.5L1.5 7l5 5.5"/></svg></button>
       <h2 class="set-title" id="setTitle"></h2>
     </header>
-    <div class="glass set-card">
+    <div class="set-label" id="themeLabel"></div>
+    <div class="themes" id="themes" role="radiogroup"></div>
+    <div class="set-label" id="alertLabel"></div>
+    <div class="glass set-card" style="margin-top:0">
       <label class="set-row" for="paceMin"><span id="paceLabel"></span>
         <input id="paceMin" type="number" inputmode="numeric" min="0" step="50"></label>
       <p class="set-hint" id="paceHint"></p>

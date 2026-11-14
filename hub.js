@@ -483,6 +483,12 @@ document.addEventListener('click', (e) => {
 /* ---------- หน้าตั้งค่า (ที่เดียวของ Alpha) ---------- */
 function renderSettings() {
   $('#setTitle').textContent = M.settings.title;
+  $('#themeLabel').textContent = M.settings.themeLabel;
+  $('#alertLabel').textContent = M.settings.alertLabel;
+  const T = globalThis.AlphaTheme;
+  const cur = T.get();
+  $('#themes').innerHTML = Object.entries(T.THEMES).map(([id, t]) => `<button type="button" role="radio" data-theme-id="${id}" aria-checked="${id === cur}">
+    <i style="background:radial-gradient(60% 80% at 25% 20%, ${t.g1}, transparent), radial-gradient(60% 80% at 85% 70%, ${t.g2}, transparent), ${t.bg}; box-shadow: inset 0 0 0 1px ${t.vi}55"></i>${esc(t.name)}</button>`).join('');
   $('#paceLabel').textContent = M.settings.paceLabel;
   $('#paceHint').textContent = M.settings.paceHint;
   $('#paceMin').value = settings.paceMin;
@@ -499,6 +505,12 @@ function closeSettings() {
   setTimeout(() => { el.hidden = true; el.classList.remove('closing'); }, reduceMotion ? 0 : 400);
 }
 $('#settingsBtn').addEventListener('click', openSettings);
+$('#themes').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-theme-id]');
+  if (!b) return;
+  globalThis.AlphaTheme.set(b.dataset.themeId);
+  renderSettings();
+});
 $('#settingsBack').addEventListener('click', closeSettings);
 $('#paceMin').addEventListener('change', (e) => {
   const v = Math.max(0, Math.round(Number(e.target.value) || 0));

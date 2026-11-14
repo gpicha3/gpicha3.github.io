@@ -60,6 +60,8 @@ export const M = {
   /* ---------- หน้าตั้งค่า ---------- */
   settings: {
     title: 'ตั้งค่า',
+    themeLabel: '// ธีมสี (Alpha, Fuel Logger และ Finance เปลี่ยนตามกัน)',
+    alertLabel: '// การแจ้งเตือน',
     paceLabel: 'แจ้ง "ใช้เร็วกว่าแผน" เมื่อเกิน (บาท)',
     paceHint: 'ถ้าใช้เร็วกว่าแผนน้อยกว่านี้ Alpha จะไม่แจ้งเตือนค่ะ',
   },
