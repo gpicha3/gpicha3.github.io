@@ -74,15 +74,6 @@
     <div class="rp-body mono" id="rpBody"></div>
     <div class="rp-label mono">// MODULES</div>
     <div class="rp-modules mono" id="rpModules"></div>
-    <div class="rp-label mono">// VOICE</div>
-    <div class="glass rp-voice">
-      <div class="seg" id="voiceSeg" role="radiogroup">
-        <button type="button" role="radio" data-voice="device"></button>
-        <button type="button" role="radio" data-voice="siri"></button>
-      </div>
-      <p id="voiceNote"></p>
-      <button type="button" class="voice-test" id="voiceTest"></button>
-    </div>
   </section>
 
   <!-- หน้าตั้งค่า -->
@@ -93,12 +84,37 @@
     </header>
     <div class="set-label" id="themeLabel"></div>
     <div class="themes" id="themes" role="radiogroup"></div>
+    <div class="set-label" id="modeLabel"></div>
+    <div class="seg three" id="modeSeg" role="radiogroup">
+      <button type="button" role="radio" data-mode="auto"></button>
+      <button type="button" role="radio" data-mode="light"></button>
+      <button type="button" role="radio" data-mode="dark"></button>
+    </div>
+    <div class="set-label" id="langLabel"></div>
+    <div class="seg" id="langSeg" role="radiogroup">
+      <button type="button" role="radio" data-lang="th">ไทย</button>
+      <button type="button" role="radio" data-lang="en">English</button>
+    </div>
+    <div class="set-label" id="connLabel"></div>
+    <div class="set-stack" id="conns"></div>
     <div class="set-label" id="alertLabel"></div>
     <div class="glass set-card" style="margin-top:0">
       <label class="set-row" for="paceMin"><span id="paceLabel"></span>
         <input id="paceMin" type="number" inputmode="numeric" min="0" step="50"></label>
       <p class="set-hint" id="paceHint"></p>
+      <div class="toggle-row" style="margin-top:14px"><span id="briefLabel"></span><button type="button" class="switch" id="briefSwitch" role="switch" aria-checked="true" aria-labelledby="briefLabel"></button></div>
+      <p class="set-hint" id="briefHint"></p>
     </div>
+    <div class="set-label" id="voiceLabel"></div>
+    <div class="glass rp-voice">
+      <div class="seg" id="voiceSeg" role="radiogroup">
+        <button type="button" role="radio" data-voice="device"></button>
+        <button type="button" role="radio" data-voice="siri"></button>
+      </div>
+      <p id="voiceNote"></p>
+      <button type="button" class="voice-test" id="voiceTest"></button>
+    </div>
+    <p class="set-hint" style="text-align:center;margin:24px 0 8px" id="setFoot"></p>
   </section>
 
   <script type="module" src="/hub.js"></script>

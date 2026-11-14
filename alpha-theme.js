@@ -1,10 +1,14 @@
 'use strict';
-// ธีมสีของ Alpha — โหลดใน <head> (script ธรรมดา) เพื่อใส่สีก่อนหน้าเว็บแสดงผล ไม่มีจอกะพริบ
-// เก็บใน localStorage key เดียว: "alpha.theme" = รหัสธีม (JSON string) เช่น "aurora"
-// fuel-logger และ finance-app อ่าน key เดียวกันใน theme.js ของตัวเอง แล้วเลือกชุดสีที่ใกล้ที่สุดของแอป
-//   (ตาราง apps ด้านล่าง — ถ้าแก้ชื่อธีมที่นี่ ต้องแก้ตาราง ALPHA_THEME ในแอปทั้งสองด้วย)
+// ธีมของ Alpha — โหลดใน <head> (script ธรรมดา) เพื่อใส่สีก่อนหน้าเว็บแสดงผล ไม่มีจอกะพริบ
+// ใช้ร่วมกันทั้ง 3 แอป (Alpha, fuel-logger, finance-app โหลดไฟล์นี้จาก /alpha-theme.js)
+// localStorage (ตั้งค่าที่หน้าตั้งค่าของ Alpha ที่เดียว):
+//   "alpha.theme" = รหัสธีม เช่น "aurora" หรือ "time" (เปลี่ยนตามเวลา)
+//   "alpha.mode"  = "auto" | "light" | "dark"
+//   "alpha.lang"  = "th" | "en" (ภาษาในแอป Fuel Logger / Finance)
 (function (root) {
   const KEY = 'alpha.theme';
+  const MODE_KEY = 'alpha.mode';
+  const LANG_KEY = 'alpha.lang';
   const DEFAULT = 'aurora';
   const THEMES = {
     aurora: {
@@ -38,29 +42,55 @@
       core: ['#ffffff', '#b8b8c4', '#3a3a44'], shirt: '#b9b9c2', apps: { fuel: 'gray', finance: 'black' },
     },
   };
-
-  function get() {
-    try { const id = JSON.parse(localStorage.getItem(KEY) || 'null'); return THEMES[id] ? id : DEFAULT; } catch { return DEFAULT; }
+  // ธีมตามเวลา: เช้า-บ่าย Ocean · เย็น Sunset · ค่ำ-ดึก Aurora
+  function themeForTime(d = new Date()) {
+    const h = d.getHours();
+    return h >= 6 && h < 16 ? 'ocean' : h >= 16 && h < 19 ? 'sunset' : 'aurora';
   }
 
-  function apply(id) {
-    const t = THEMES[id] || THEMES[DEFAULT];
-    const s = document.documentElement.style;
-    const vars = { bg: t.bg, ink: t.ink, lav: t.lav, dim: t.dim, vi: t.vi, pk: t.pk, g1: t.g1, g2: t.g2, g3: t.g3, halo: t.halo, shirt: t.shirt,
-      'core-a': t.core[0], 'core-b': t.core[1], 'core-c': t.core[2] };
+  const read = (k, fb) => { try { const v = JSON.parse(localStorage.getItem(k) || 'null'); return v ?? fb; } catch { return fb; } };
+  const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage unavailable */ } };
+
+  // รหัสที่ผู้ใช้เลือก (อาจเป็น "time") / ธีมจริงที่ใช้ตอนนี้
+  const choice = () => { const id = read(KEY, DEFAULT); return id === 'time' || THEMES[id] ? id : DEFAULT; };
+  const get = () => { const c = choice(); return c === 'time' ? themeForTime() : c; };
+  const mode = () => { const m = read(MODE_KEY, 'auto'); return ['auto', 'light', 'dark'].includes(m) ? m : 'auto'; };
+  const isDark = () => { const m = mode(); return m === 'dark' || (m === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches); };
+  const lang = () => (read(LANG_KEY, null) === 'en' ? 'en' : read(LANG_KEY, null) === 'th' ? 'th' : null);
+
+  function mixHex(a, b, w) {
+    const c = (h, i) => parseInt(h.slice(1 + i * 2, 3 + i * 2), 16);
+    return `#${[0, 1, 2].map((i) => Math.round(c(a, i) * w + c(b, i) * (1 - w)).toString(16).padStart(2, '0')).join('')}`;
+  }
+  // พื้นหลังโหมดสว่าง = สีหลักของธีมจาง ๆ บนขาว (ใช้กับ meta theme-color ด้วย)
+  const lightBg = (t) => mixHex(t.vi, '#fbfaff', 0.1);
+
+  function apply() {
+    const id = get();
+    const t = THEMES[id];
+    const el = document.documentElement;
+    const s = el.style;
+    const dark = isDark();
+    const vars = { vi: t.vi, pk: t.pk, g1: t.g1, g2: t.g2, g3: t.g3, halo: t.halo, shirt: t.shirt,
+      'core-a': t.core[0], 'core-b': t.core[1], 'core-c': t.core[2],
+      'bg-dark': t.bg, 'ink-dark': t.ink, 'lav-dark': t.lav, 'dim-dark': t.dim, 'bg-light': lightBg(t) };
     Object.entries(vars).forEach(([k, v]) => s.setProperty(`--${k}`, v));
-    document.documentElement.dataset.alphaTheme = id;
+    el.dataset.alphaTheme = id;
+    el.dataset.alphaMode = dark ? 'dark' : 'light';
     // แถบสถานะ/พื้นหลังของระบบให้ตรงกับพื้นหลัง (กันขอบสีต่างตอนโหลด)
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.content = t.bg;
+    const meta = document.querySelector('meta[name="theme-color"]:not([media])') || document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.content = dark ? t.bg : lightBg(t);
+    const sb = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+    if (sb) sb.content = dark ? 'black-translucent' : 'default';
   }
 
-  function set(id) {
-    if (!THEMES[id]) return;
-    try { localStorage.setItem(KEY, JSON.stringify(id)); } catch { /* storage unavailable */ }
-    apply(id);
-  }
+  function set(id) { if (id === 'time' || THEMES[id]) { write(KEY, id); apply(); } }
+  function setMode(m) { if (['auto', 'light', 'dark'].includes(m)) { write(MODE_KEY, m); apply(); } }
+  function setLang(l) { if (l === 'th' || l === 'en') write(LANG_KEY, l); }
 
-  root.AlphaTheme = { KEY, DEFAULT, THEMES, get, set, apply };
-  apply(get());
+  root.AlphaTheme = { KEY, MODE_KEY, LANG_KEY, DEFAULT, THEMES, themeForTime, choice, get, mode, isDark, lang, set, setMode, setLang, apply };
+  apply();
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', apply);
+  // ธีมตามเวลา: เช็กทุกครั้งที่กลับมาเปิดแอป
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && choice() === 'time') apply(); });
 })(globalThis);

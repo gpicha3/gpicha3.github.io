@@ -24,7 +24,7 @@ const session = {
 
 // การตั้งค่าของ Alpha (ที่เดียว): paceMin = แจ้ง "ใช้เร็วกว่าแผน" เมื่อเกินกี่บาท
 const SETTINGS_KEY = 'alpha.settings';
-const DEFAULT_SETTINGS = { paceMin: 100 };
+const DEFAULT_SETTINGS = { paceMin: 100, morningBrief: true };
 const settings = { ...DEFAULT_SETTINGS, ...store.get(SETTINGS_KEY, {}) };
 const saveSettings = () => store.set(SETTINGS_KEY, settings);
 
@@ -211,6 +211,7 @@ async function refresh() {
   renderHome();
   // เปิดหน้ารายงานค้างไว้ระหว่างซิงก์ → อัปเดตด้วยข้อมูลใหม่
   if (!$('#report').hidden) renderReport();
+  morningBrief();
   if (!$('#sync').hidden) {
     renderSync();
     // ถ้ามีแอปที่ต้องตั้งค่า ค้างหน้าซิงก์ไว้นานขึ้นนิดให้เห็น แล้วค่อยเข้าหน้าแรก
@@ -492,17 +493,60 @@ document.addEventListener('click', (e) => {
 });
 
 /* ---------- หน้าตั้งค่า (ที่เดียวของ Alpha) ---------- */
+const T = globalThis.AlphaTheme;
+// รูปแบบ Setup code เดียวกับในแอป: ลิงก์ Apps Script + ?k=TOKEN
+function parseSetup(text) {
+  let u;
+  try { u = new URL(String(text).trim()); } catch { return null; }
+  const k = u.searchParams.get('k');
+  if (!/^https:\/\/script\.google(usercontent)?\.com\//.test(u.href) || !k) return null;
+  return { url: `${u.origin}${u.pathname}`, k };
+}
+const editing = new Set(); // แอปที่กำลังแก้ Setup code
+const connMsg = {};        // ข้อความสถานะการเชื่อมต่อของแต่ละแอป
+
 function renderSettings() {
-  $('#setTitle').textContent = M.settings.title;
-  $('#themeLabel').textContent = M.settings.themeLabel;
-  $('#alertLabel').textContent = M.settings.alertLabel;
-  const T = globalThis.AlphaTheme;
-  const cur = T.get();
-  $('#themes').innerHTML = Object.entries(T.THEMES).map(([id, t]) => `<button type="button" role="radio" data-theme-id="${id}" aria-checked="${id === cur}">
-    <i style="background:radial-gradient(60% 80% at 25% 20%, ${t.g1}, transparent), radial-gradient(60% 80% at 85% 70%, ${t.g2}, transparent), ${t.bg}; box-shadow: inset 0 0 0 1px ${t.vi}55"></i>${esc(t.name)}</button>`).join('');
-  $('#paceLabel').textContent = M.settings.paceLabel;
-  $('#paceHint').textContent = M.settings.paceHint;
+  const S = M.settings;
+  $('#setTitle').textContent = S.title;
+  $('#themeLabel').textContent = S.themeLabel;
+  $('#modeLabel').textContent = S.modeLabel;
+  $('#langLabel').textContent = S.langLabel;
+  $('#connLabel').textContent = S.connLabel;
+  $('#alertLabel').textContent = S.alertLabel;
+  $('#voiceLabel').textContent = S.voiceLabel;
+  $('#setFoot').textContent = S.foot;
+
+  const cur = T.choice();
+  const tile = (id, t, label) => `<button type="button" role="radio" data-theme-id="${id}" aria-checked="${id === cur}">
+    <i style="background:radial-gradient(60% 80% at 25% 20%, ${t.g1}, transparent), radial-gradient(60% 80% at 85% 70%, ${t.g2}, transparent), ${t.bg}; box-shadow: inset 0 0 0 1px ${t.vi}55"></i>${esc(label)}</button>`;
+  const tt = T.THEMES;
+  $('#themes').innerHTML = Object.entries(tt).map(([id, t]) => tile(id, t, t.name)).join('')
+    + `<button type="button" role="radio" data-theme-id="time" aria-checked="${cur === 'time'}"><i style="background:linear-gradient(90deg, ${tt.ocean.bg} 0 33%, ${tt.sunset.bg} 33% 66%, ${tt.aurora.bg} 66%), linear-gradient(90deg, ${tt.ocean.vi}, ${tt.sunset.vi}, ${tt.aurora.vi}); background-blend-mode: screen"></i>${esc(S.themeTime)}</button>`;
+
+  $$('#modeSeg [data-mode]').forEach((b) => { b.textContent = S.modes[b.dataset.mode]; b.setAttribute('aria-checked', String(b.dataset.mode === T.mode())); });
+  const lang = T.lang() || 'th';
+  $$('#langSeg [data-lang]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.lang === lang)));
+
+  $('#conns').innerHTML = APPS.filter((a) => a.setupKey).map((a) => {
+    const setup = store.get(a.setupKey, null);
+    const edit = editing.has(a.id) || !setup;
+    const msg = connMsg[a.id];
+    return `<div class="glass conn" data-conn="${a.id}">
+      <div class="conn-head"><img src="${esc(a.icon)}" alt=""><b>${esc(a.name)}</b><span class="conn-state ${setup ? 'on' : 'off'}">${esc(setup ? S.connOn : S.connOff)}</span></div>
+      ${edit ? `<textarea rows="3" placeholder="${esc(S.connPlaceholder)}" autocomplete="off" autocapitalize="off" spellcheck="false">${setup && editing.has(a.id) ? esc(`${setup.url}?k=${setup.k}`) : ''}</textarea>
+        <div class="conn-actions">${setup ? `<button type="button" data-conn-cancel>${esc(S.connCancel)}</button>` : ''}<button type="button" class="primary" data-conn-save>${esc(S.connSave)}</button></div>`
+        : `<div class="conn-actions"><button type="button" data-conn-edit>${esc(S.connEdit)}</button><button type="button" class="danger" data-conn-clear>${esc(S.connClear)}</button></div>`}
+      ${msg ? `<p class="conn-msg${msg.err ? ' err' : ''}">${esc(msg.text)}</p>` : ''}
+    </div>`;
+  }).join('');
+
+  $('#paceLabel').textContent = S.paceLabel;
+  $('#paceHint').textContent = S.paceHint;
   $('#paceMin').value = settings.paceMin;
+  $('#briefLabel').textContent = S.briefLabel;
+  $('#briefHint').textContent = S.briefHint;
+  $('#briefSwitch').setAttribute('aria-checked', String(!!settings.morningBrief));
+  renderVoice();
 }
 function openSettings() {
   renderSettings();
@@ -511,6 +555,7 @@ function openSettings() {
   el.scrollTop = 0;
 }
 function closeSettings() {
+  if (location.hash === '#settings') history.replaceState(null, '', location.pathname);
   const el = $('#settings');
   el.classList.add('closing');
   setTimeout(() => { el.hidden = true; el.classList.remove('closing'); }, reduceMotion ? 0 : 400);
@@ -519,9 +564,58 @@ $('#settingsBtn').addEventListener('click', openSettings);
 $('#themes').addEventListener('click', (e) => {
   const b = e.target.closest('[data-theme-id]');
   if (!b) return;
-  globalThis.AlphaTheme.set(b.dataset.themeId);
+  T.set(b.dataset.themeId);
   renderSettings();
 });
+$('#modeSeg').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-mode]');
+  if (!b) return;
+  T.setMode(b.dataset.mode);
+  renderSettings();
+});
+$('#langSeg').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-lang]');
+  if (!b) return;
+  T.setLang(b.dataset.lang);
+  renderSettings();
+});
+$('#briefSwitch').addEventListener('click', () => {
+  settings.morningBrief = !settings.morningBrief;
+  saveSettings();
+  renderSettings();
+});
+// การเชื่อมต่อ Google Sheet ของแต่ละแอป (เขียนลง key เดิมของแอป เช่น fl.setup / fa.setup)
+$('#conns').addEventListener('click', async (e) => {
+  const card = e.target.closest('[data-conn]');
+  if (!card) return;
+  const a = APPS.find((x) => x.id === card.dataset.conn);
+  const S = M.settings;
+  if (e.target.closest('[data-conn-edit]')) { editing.add(a.id); delete connMsg[a.id]; renderSettings(); return; }
+  if (e.target.closest('[data-conn-cancel]')) { editing.delete(a.id); delete connMsg[a.id]; renderSettings(); return; }
+  if (e.target.closest('[data-conn-clear]')) {
+    if (!confirm(S.connConfirmClear(a.name))) return;
+    try { localStorage.removeItem(a.setupKey); } catch { /* ignore */ }
+    delete cache[a.id]; store.set(CACHE_KEY, cache);
+    results[a.id] = { status: 'setup', summary: null, at: null, error: null };
+    delete connMsg[a.id];
+    renderSettings(); renderHome();
+    return;
+  }
+  if (e.target.closest('[data-conn-save]')) {
+    const setup = parseSetup(card.querySelector('textarea').value);
+    if (!setup) { connMsg[a.id] = { text: S.connBad, err: true }; renderSettings(); return; }
+    store.set(a.setupKey, setup);
+    editing.delete(a.id);
+    connMsg[a.id] = { text: S.connTesting };
+    renderSettings();
+    await loadOne(a);
+    const r = results[a.id];
+    connMsg[a.id] = r.status === 'ok' ? { text: S.connDone } : { text: S.connFail(r.error || 'error'), err: true };
+    renderSettings();
+  }
+});
+// เปิดหน้าตั้งค่าจากลิงก์ เช่น /#settings (การ์ดที่ยังไม่เชื่อม หรือปุ่มในแอป)
+window.addEventListener('hashchange', () => { if (location.hash === '#settings') openSettings(); });
 $('#settingsBack').addEventListener('click', closeSettings);
 $('#paceMin').addEventListener('change', (e) => {
   const v = Math.max(0, Math.round(Number(e.target.value) || 0));
@@ -555,6 +649,25 @@ for (const a of APPS) {
   }
 }
 
+/* ---------- สรุปตอนเช้าอัตโนมัติ ---------- */
+const BRIEF_KEY = 'alpha.lastBrief';
+function morningBrief() {
+  if (!settings.morningBrief) return;
+  const now = new Date();
+  if (now.getHours() < 5) return;
+  const today = now.toDateString();
+  if (store.get(BRIEF_KEY, '') === today) return;
+  if (!Object.values(results).some((r) => r.summary)) return;
+  store.set(BRIEF_KEY, today);
+  const go = () => {
+    hideSync();
+    openReport();
+    // iPhone อาจไม่ยอมให้เล่นเสียงเองโดยไม่ได้แตะ ถ้าไม่ได้ก็แสดงสรุปอย่างเดียว (โหมด Siri ไม่สลับแอปเอง)
+    if (voiceMode === 'device') setTimeout(() => $('#speakBtn').click(), 700);
+  };
+  setTimeout(go, $('#sync').hidden ? 300 : 1900);
+}
+
 /* ---------- เริ่ม ---------- */
 // ข้อความคงที่ในหน้า HTML ดึงจาก messages.js
 $('.orb-hint').textContent = M.orbHint;
@@ -563,5 +676,6 @@ $('#sync h2').textContent = M.sync.title;
 $('#syncSkip').textContent = M.sync.skip;
 renderHome();
 if (location.hash === '#report') openReport({ push: false });
+else if (location.hash === '#settings') openSettings();
 else if (!session.get(SYNC_SEEN)) showSync();
 refresh();
