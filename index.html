@@ -16,6 +16,7 @@
   <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css">
   <script src="/alpha-theme.js"></script>
+  <link rel="preload" href="/assets/alpha-character.png" as="image">
 </head>
 <body>
   <div class="aurora" aria-hidden="true"></div>
@@ -26,7 +27,7 @@
       <button type="button" class="gear" id="settingsBtn" aria-label="ตั้งค่า"><svg viewBox="0 0 24 24"><path d="M4 7h9M18 7h2M4 17h2M11 17h9"/><circle cx="15.5" cy="7" r="2.5"/><circle cx="8.5" cy="17" r="2.5"/></svg></button></span></div>
 
     <button type="button" class="orb-btn" id="orbBtn" aria-label="เปิดหน้าสรุป">
-      <span class="orb orb-lg" aria-hidden="true"><i class="orb-core"></i><i class="ring r1"></i><i class="ring r2"></i><i class="spark s1"></i><i class="spark s2"></i></span>
+      <span class="alpha alpha-lg" id="alpha" aria-hidden="true"><i class="glow-orb"></i><i class="ring r1"></i><span class="char"><img src="/assets/alpha-character.png" alt="" draggable="false"><i class="shirt"></i></span><i class="ring r2"></i><i class="spark s1"></i><i class="spark s2"></i></span>
       <span class="orb-hint">แตะเพื่อฟังสรุป</span>
     </button>
 
@@ -52,7 +53,7 @@
   <!-- หน้าซิงก์ตอนเปิดแอป -->
   <section class="overlay sync" id="sync" aria-label="กำลังซิงก์" hidden>
     <div class="hud-top mono"><span class="live warn"><i></i><b>ALPHA · SYNCING</b></span><span id="syncCount"></span></div>
-    <span class="orb orb-xl spinning" aria-hidden="true"><i class="orb-core"></i><i class="ring r1"></i><i class="ring r2"></i><i class="spark s1"></i><i class="spark s2"></i></span>
+    <span class="alpha alpha-xl spinning" aria-hidden="true"><i class="glow-orb"></i><i class="ring r1"></i><span class="char"><img src="/assets/alpha-character.png" alt="" draggable="false"><i class="shirt"></i></span><i class="ring r2"></i><i class="spark s1"></i><i class="spark s2"></i></span>
     <h2>กำลังเชื่อมต่อข้อมูล…</h2>
     <p id="syncSub">ดึงข้อมูลล่าสุดจากทุกแอป</p>
     <div class="glass mono sync-log" id="syncLog"></div>
@@ -64,7 +65,7 @@
   <section class="overlay report" id="report" aria-label="รายงาน" hidden>
     <header class="rp-head">
       <button type="button" class="back" id="reportBack" aria-label="กลับ"><svg viewBox="0 0 8 14"><path d="M6.5 1.5L1.5 7l5 5.5"/></svg></button>
-      <span class="orb orb-sm" aria-hidden="true"><i class="orb-core"></i><i class="ring r1"></i><i class="ring r2"></i></span>
+      <span class="avatar" id="rpAvatar" aria-hidden="true"><span class="char"><img src="/assets/alpha-character.png" alt="" draggable="false"><i class="shirt"></i></span></span>
       <div class="rp-title"><b class="mono">ALPHA</b><small class="mono" id="rpState"></small></div>
       <button type="button" class="speak" id="speakBtn" aria-label="อ่านให้ฟัง">
         <svg viewBox="0 0 24 24"><path d="M4 10v4h4l5 4V6L8 10z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>

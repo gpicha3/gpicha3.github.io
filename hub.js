@@ -360,11 +360,22 @@ function speak(raw, onEnd) {
   const voice = thaiVoice();
   if (voice) u.voice = voice;
   u.rate = 1.02;
-  u.onend = u.onerror = () => onEnd?.();
+  setSpeaking(true);
+  u.onboundary = () => {
+    const a = $('#alpha');
+    a.classList.add('bump');
+    setTimeout(() => a.classList.remove('bump'), 120);
+  };
+  u.onend = u.onerror = () => { setSpeaking(false); onEnd?.(); };
   speechSynthesis.speak(u);
+}
+function setSpeaking(on) {
+  $('#alpha').classList.toggle('speaking', on);
+  $('#rpAvatar').classList.toggle('speaking', on);
 }
 function stopSpeaking() {
   if (canSpeak) speechSynthesis.cancel();
+  setSpeaking(false);
   $('#speakBtn').classList.remove('on');
 }
 function renderVoice() {
