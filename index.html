@@ -71,6 +71,15 @@
     <div class="rp-body mono" id="rpBody"></div>
     <div class="rp-label mono">// MODULES</div>
     <div class="rp-modules mono" id="rpModules"></div>
+    <div class="rp-label mono">// VOICE</div>
+    <div class="glass rp-voice">
+      <div class="seg" id="voiceSeg" role="radiogroup">
+        <button type="button" role="radio" data-voice="device"></button>
+        <button type="button" role="radio" data-voice="siri"></button>
+      </div>
+      <p id="voiceNote"></p>
+      <button type="button" class="voice-test" id="voiceTest"></button>
+    </div>
   </section>
 
   <script type="module" src="/hub.js"></script>

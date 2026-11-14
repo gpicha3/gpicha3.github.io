@@ -4,6 +4,7 @@ import { runCommand } from './commands.js';
 import { M, greeting } from './messages.js';
 
 const $ = (s) => document.querySelector(s);
+const $$ = (s) => [...document.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const CACHE_KEY = 'hub.cache.v1';     // ผลสรุปล่าสุดของแต่ละแอป (เปิดแล้วเห็นทันที)
 const SYNC_SEEN = 'hub.syncShown';    // sessionStorage: แสดงหน้าซิงก์ครั้งเดียวต่อการเปิดแอป
@@ -192,6 +193,8 @@ async function refresh() {
   syncing = false;
   syncedAt = new Date();
   renderHome();
+  // เปิดหน้ารายงานค้างไว้ระหว่างซิงก์ → อัปเดตด้วยข้อมูลใหม่
+  if (!$('#report').hidden) renderReport();
   if (!$('#sync').hidden) {
     renderSync();
     // ถ้ามีแอปที่ต้องตั้งค่า ค้างหน้าซิงก์ไว้นานขึ้นนิดให้เห็น แล้วค่อยเข้าหน้าแรก
@@ -304,8 +307,32 @@ function thaiVoice() {
   return th.find((v) => FEMALE_TH.test(v.name)) || th.find((v) => !MALE_TH.test(v.name)) || th[0] || null;
 }
 if (canSpeak) speechSynthesis.getVoices(); // iPhone โหลดรายชื่อเสียงช้า เรียกไว้ก่อน
-function speak(text, onEnd) {
-  if (!canSpeak || !text) return;
+// โหมดเสียง: device = เสียงในเครื่อง, siri = ส่งข้อความให้คำสั่งลัดใน iPhone อ่านด้วยเสียง Siri
+const VOICE_KEY = 'hub.voice';
+let voiceMode = store.get(VOICE_KEY, 'device') === 'siri' ? 'siri' : 'device';
+
+// แปลงข้อความให้อ่านออกเสียงลื่นขึ้น เช่น ฿1,500 → 1,500 บาท, กม./ล. → กิโลเมตรต่อลิตร
+function sayable(text) {
+  return String(text)
+    .replace(/฿\/กม\./g, 'บาทต่อกิโลเมตร')
+    .replace(/กม\.\/ล\./g, 'กิโลเมตรต่อลิตร')
+    .replace(/กม\./g, 'กิโลเมตร')
+    .replace(/฿\s?([\d,.]+)/g, '$1 บาท')
+    .replace(/~/g, 'ประมาณ ')
+    .replace(/\s*·\s*/g, ', ')
+    .replace(/[<>]/g, '');
+}
+
+function speakWithShortcut(text) {
+  const q = new URLSearchParams({ name: M.voice.shortcutName, input: 'text', text });
+  location.href = `shortcuts://run-shortcut?${q.toString().replace(/\+/g, '%20')}`;
+}
+
+function speak(raw, onEnd) {
+  const text = sayable(raw || '');
+  if (!text) return;
+  if (voiceMode === 'siri') { speakWithShortcut(text); setTimeout(() => onEnd?.(), 1500); return; }
+  if (!canSpeak) return;
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
   u.lang = 'th-TH';
@@ -319,7 +346,25 @@ function stopSpeaking() {
   if (canSpeak) speechSynthesis.cancel();
   $('#speakBtn').classList.remove('on');
 }
-if (!canSpeak) $('#speakBtn').hidden = true;
+function renderVoice() {
+  $$('#voiceSeg [data-voice]').forEach((b) => {
+    b.textContent = M.voice[b.dataset.voice];
+    b.setAttribute('aria-checked', String(b.dataset.voice === voiceMode));
+  });
+  $('#voiceNote').textContent = voiceMode === 'siri' ? M.voice.siriNote(M.voice.shortcutName) : M.voice.deviceNote;
+  $('#voiceTest').textContent = M.voice.test;
+  $('#speakBtn').hidden = voiceMode === 'device' && !canSpeak;
+}
+$('#voiceSeg').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-voice]');
+  if (!b) return;
+  stopSpeaking();
+  voiceMode = b.dataset.voice;
+  store.set(VOICE_KEY, voiceMode);
+  renderVoice();
+});
+$('#voiceTest').addEventListener('click', () => speak(M.voice.testText));
+renderVoice();
 $('#speakBtn').addEventListener('click', () => {
   const btn = $('#speakBtn');
   if (btn.classList.contains('on')) { stopSpeaking(); return; }
@@ -344,7 +389,8 @@ function handleCommand(text, { voice = false } = {}) {
   $('#cmdInput').value = '';
   $('#cmdInput').blur();
   showAnswer(res.say, res.sub);
-  if (voice) speak(res.sub ? `${res.say} ${res.sub}` : res.say);
+  // โหมด Siri สลับแอปทุกครั้งที่พูด จึงพูดเฉพาะคำตอบที่ไม่ต้องเปิดหน้าอื่นต่อ
+  if (voice && !(voiceMode === 'siri' && (res.go || res.report))) speak(res.sub ? `${res.say} ${res.sub}` : res.say);
   if (res.report) setTimeout(() => openReport(), 250);
   else if (res.go) setTimeout(() => { location.href = res.go; }, voice ? 900 : 450);
 }
