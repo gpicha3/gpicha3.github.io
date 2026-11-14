@@ -630,6 +630,30 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('pageshow', (e) => { if (e.persisted) refresh(); });
 
+/* ---------- กดค้างที่การ์ด = ทางลัด (config.longPress) ---------- */
+// เช่น กดค้างการ์ด Fuel Logger 0.5 วิ → เปิดฟอร์มเติมน้ำมันทันที
+let pressTimer = null;
+let pressFired = false;
+document.addEventListener('pointerdown', (e) => {
+  const card = e.target.closest('a.app');
+  const app = card && APPS.find((a) => a.path === card.getAttribute('href') && a.longPress);
+  pressFired = false;
+  if (!app) return;
+  card.classList.add('pressing');
+  pressTimer = setTimeout(() => {
+    pressFired = true;
+    card.classList.remove('pressing');
+    navigator.vibrate?.(12);
+    location.href = app.longPress;
+  }, 500);
+});
+const cancelPress = () => { clearTimeout(pressTimer); document.querySelectorAll('.app.pressing').forEach((c) => c.classList.remove('pressing')); };
+['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => document.addEventListener(ev, cancelPress));
+document.addEventListener('scroll', cancelPress, true);
+// กดค้างจนเปิดทางลัดแล้ว ไม่ต้องเปิดหน้าแอปซ้ำ
+document.addEventListener('click', (e) => { if (pressFired && e.target.closest('a.app')) { e.preventDefault(); e.stopPropagation(); pressFired = false; } }, true);
+document.addEventListener('contextmenu', (e) => { if (e.target.closest('a.app')) e.preventDefault(); });
+
 /* ---------- เปลี่ยนหน้าให้สมูท ---------- */
 // ชื่อแอปบนการ์ดที่กดเท่านั้นที่ได้ view-transition-name (ห้ามซ้ำในหน้า) แล้วเลื่อนไปเป็นหัวข้อของแอป
 document.addEventListener('click', (e) => {

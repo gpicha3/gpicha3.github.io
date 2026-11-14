@@ -9,6 +9,7 @@
 // summary   (ไม่บังคับ) ไฟล์ที่ export getSummary() ถ้าไม่มี การ์ดจะเป็นลิงก์ธรรมดา
 // setupKey  (ไม่บังคับ) key ใน localStorage ที่แอปเก็บ Setup code ({url, k}) — ตั้งค่าได้ที่หน้าตั้งค่าของ Alpha ที่เดียว
 // setupLink (ไม่บังคับ) ลิงก์ไปตั้งค่าการเชื่อมต่อ (ตอนนี้ = หน้าตั้งค่าของ Alpha)
+// longPress (ไม่บังคับ) กดค้างที่การ์ดแล้วเปิดลิงก์นี้แทน (เช่น ฟอร์มเติมน้ำมัน)
 // keywords  (ไม่บังคับ) คำที่ใช้สั่ง "เปิด …" จากช่องสั่งงาน
 export default [
   {
@@ -19,6 +20,7 @@ export default [
     icon: '/fuel-logger/icons/icon-192.png',
     color: '#9ff0c4',
     summary: '/fuel-logger/summary.js',
+    longPress: '/fuel-logger/#add',
     setupKey: 'fl.setup',
     setupLink: '/#settings',
     keywords: ['fuel', 'น้ำมัน', 'รถ'],
