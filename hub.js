@@ -73,7 +73,7 @@ function renderHome() {
   const live = $('#liveState');
   const anyError = Object.values(results).some((r) => r.status === 'error');
   live.className = `live${syncing ? ' warn' : anyError ? ' bad' : ''}`;
-  live.querySelector('b').textContent = syncing ? 'SYNCING' : anyError ? 'PARTIAL' : 'ONLINE';
+  live.querySelector('b').textContent = `ALPHA · ${syncing ? 'SYNCING' : anyError ? 'PARTIAL' : 'ONLINE'}`;
 
   const alerts = allAlerts();
   const urgent = alerts.filter((a) => a.level === 'urgent').length;
