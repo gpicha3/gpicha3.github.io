@@ -43,7 +43,10 @@ export function runCommand(text, ctx) {
   // น้ำมัน / ระยะที่วิ่งได้
   if (/น้ำมัน.*(เหลือ|พอ|วิ่ง)|วิ่งได้|ระยะ(ที่)?เหลือ|อีกกี่(กม|กิโล)/.test(q)) {
     if (!fuel) return missing('Fuel Logger');
-    return { say: M.cmd.fuelRange(statText(stat(fuel, 'ยังวิ่งได้'))), sub: M.cmd.fuelRateSub(statText(stat(fuel, 'อัตราเฉลี่ย'))) };
+    const range = fuel.stats?.[0];
+    const sub = M.cmd.fuelRateSub(statText(stat(fuel, 'อัตราเฉลี่ย')));
+    if (range?.label === 'ถึงเวลาเติมน้ำมันแล้ว') return { say: M.cmd.fuelEmpty, sub, go: '/fuel-logger/#add' };
+    return { say: M.cmd.fuelRange(statText(range)), sub };
   }
   if (/กินน้ำมัน|อัตรา|กม\/ล|กิโลต่อลิตร|ประหยัด/.test(q)) {
     if (!fuel) return missing('Fuel Logger');

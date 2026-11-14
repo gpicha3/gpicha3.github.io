@@ -77,6 +77,7 @@ export const M = {
     noData: (app) => `ยังไม่มีข้อมูลจาก ${app} ค่ะ`,
     noDataSub: 'ลองเปิดแอปแล้วเชื่อม Google Sheet ก่อนนะคะ',
     fuelRange: (v) => `น้ำมันพอวิ่งได้อีกประมาณ ${v} ค่ะ`,
+    fuelEmpty: 'ถึงเวลาเติมน้ำมันแล้วค่ะ',
     fuelRate: (v) => `อัตราเฉลี่ย ${v} ค่ะ`,
     fuelRateSub: (v) => `อัตราเฉลี่ย ${v}`,
     fuelCostSub: (v) => `ต้นทุน ${v}`,
