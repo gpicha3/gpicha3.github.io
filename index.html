@@ -21,7 +21,8 @@
 
   <!-- หน้าแรก -->
   <main class="home" id="home">
-    <div class="hud-top mono"><span class="live" id="liveState"><i></i><b>ONLINE</b></span><span id="hudDate"></span></div>
+    <div class="hud-top mono"><span class="live" id="liveState"><i></i><b>ONLINE</b></span><span class="hud-right"><span id="hudDate"></span>
+      <button type="button" class="gear" id="settingsBtn" aria-label="ตั้งค่า"><svg viewBox="0 0 24 24"><path d="M4 7h9M18 7h2M4 17h2M11 17h9"/><circle cx="15.5" cy="7" r="2.5"/><circle cx="8.5" cy="17" r="2.5"/></svg></button></span></div>
 
     <button type="button" class="orb-btn" id="orbBtn" aria-label="เปิดหน้าสรุป">
       <span class="orb orb-lg" aria-hidden="true"><i class="orb-core"></i><i class="ring r1"></i><i class="ring r2"></i><i class="spark s1"></i><i class="spark s2"></i></span>
@@ -79,6 +80,19 @@
       </div>
       <p id="voiceNote"></p>
       <button type="button" class="voice-test" id="voiceTest"></button>
+    </div>
+  </section>
+
+  <!-- หน้าตั้งค่า -->
+  <section class="overlay settings" id="settings" aria-label="ตั้งค่า" hidden>
+    <header class="rp-head">
+      <button type="button" class="back" id="settingsBack" aria-label="กลับ"><svg viewBox="0 0 8 14"><path d="M6.5 1.5L1.5 7l5 5.5"/></svg></button>
+      <h2 class="set-title" id="setTitle"></h2>
+    </header>
+    <div class="glass set-card">
+      <label class="set-row" for="paceMin"><span id="paceLabel"></span>
+        <input id="paceMin" type="number" inputmode="numeric" min="0" step="50"></label>
+      <p class="set-hint" id="paceHint"></p>
     </div>
   </section>
 

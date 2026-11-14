@@ -22,6 +22,12 @@ const session = {
   set(k, v) { try { sessionStorage.setItem(k, v); } catch { /* ignore */ } },
 };
 
+// การตั้งค่าของ Alpha (ที่เดียว): paceMin = แจ้ง "ใช้เร็วกว่าแผน" เมื่อเกินกี่บาท
+const SETTINGS_KEY = 'alpha.settings';
+const DEFAULT_SETTINGS = { paceMin: 100 };
+const settings = { ...DEFAULT_SETTINGS, ...store.get(SETTINGS_KEY, {}) };
+const saveSettings = () => store.set(SETTINGS_KEY, settings);
+
 // สถานะของแต่ละแอป: loading | ok | setup | error  (+ summary ล่าสุดจาก cache ถ้ามี)
 const cache = store.get(CACHE_KEY, {});
 const results = {};
@@ -49,7 +55,10 @@ function allAlerts() {
   for (const a of APPS) {
     const r = results[a.id];
     if (!r?.summary || r.status === 'setup') continue;
-    for (const al of r.summary.alerts || []) out.push({ ...al, app: a });
+    for (const al of r.summary.alerts || []) {
+      if (al.kind === 'pace' && (Number(al.amount) || 0) < settings.paceMin) continue;
+      out.push({ ...al, app: a });
+    }
   }
   return out.sort((x, y) => (LEVEL_RANK[x.level] ?? 3) - (LEVEL_RANK[y.level] ?? 3)
     || String(x.dueDate || '9999').localeCompare(String(y.dueDate || '9999')));
@@ -80,17 +89,24 @@ function renderHome() {
   if (!top.length) $('#alerts').innerHTML = '';
   else {
     const [first, ...rest] = top;
+    // รายการที่รวมหลายงวด (items) แตะแล้วกางรายการย่อย แทนการเปิดลิงก์
+    const tag = (a, cls, inner) => (a.items?.length
+      ? `<button type="button" class="${cls}" data-toggle aria-expanded="false">${inner}</button>${subList(a)}`
+      : `<a class="${cls}" href="${esc(a.link || a.app.path)}">${inner}</a>`);
     $('#alerts').innerHTML = `<div class="glass al-card">
-      <a class="al-main" href="${esc(first.link || first.app.path)}">
-        <span class="al-ic ${first.level}">!</span>
-        <span class="al-text"><b>${esc(first.text)}</b><small>${esc(first.app.name)}</small></span>${CHEV}
-      </a>
-      ${rest.map((a) => `<a class="al-row" href="${esc(a.link || a.app.path)}"><span class="dot ${a.level}"></span><span>${esc(a.text)}</span><small>${esc(a.app.name)}</small></a>`).join('')}
+      ${tag(first, 'al-main', `<span class="al-ic ${first.level}">!</span>
+        <span class="al-text"><b>${esc(first.text)}</b><small>${esc(first.app.name)}</small></span>${first.items?.length ? CARET : CHEV}`)}
+      ${rest.map((a) => tag(a, 'al-row', `<span class="dot ${a.level}"></span><span>${esc(a.text)}</span><small>${esc(a.app.name)}</small>${a.items?.length ? CARET : ''}`)).join('')}
       ${alerts.length > 1 ? `<button type="button" class="al-more" data-report>${esc(M.seeAll(alerts.length))}</button>` : ''}
     </div>`;
   }
 
   $('#apps').innerHTML = APPS.map(appCard).join('');
+}
+
+const CARET = '<svg class="caret" viewBox="0 0 14 8"><path d="M1.5 1.5L7 6.5l5.5-5"/></svg>';
+function subList(a) {
+  return `<div class="al-sub" hidden>${a.items.map((it) => `<a href="${esc(it.link || a.link || a.app.path)}"><span>${esc(it.text)}</span>${CHEV}</a>`).join('')}</div>`;
 }
 
 function appCard(a) {
@@ -211,7 +227,10 @@ function reportLines() {
   const lines = [];
   for (const a of alerts) {
     const cls = a.level === 'urgent' ? 'u' : a.level === 'soon' ? 's' : 'i';
-    lines.push({ html: `&gt; <span class="${cls}">${esc(M.report.level[a.level] || '')}</span> ${esc(a.text)}`, text: a.text, link: a.link || a.app.path });
+    const group = a.items?.length ? a.items : null;
+    lines.push({ html: `&gt; <span class="${cls}">${esc(M.report.level[a.level] || '')}</span> ${esc(a.text)}${group ? ' <span class="go">▾</span>' : ''}`,
+      text: a.text, link: group ? null : a.link || a.app.path, toggle: !!group });
+    if (group) for (const it of group) lines.push({ html: `<span class="go">└</span> ${esc(it.text)}`, link: it.link || a.link || a.app.path, sub: true });
   }
   for (const a of APPS) {
     const s = results[a.id]?.summary;
@@ -235,9 +254,11 @@ function renderReport() {
   const lines = reportLines();
   $('#rpBody').innerHTML = `<div class="ts">[${clock(ts)}] ${syncing ? 'syncing…' : 'sync complete'}</div>
     <div class="hello">${esc(M.report.intro(greeting()))}</div>
-    ${lines.map((l, i) => (l.link
-      ? `<a class="rp-line" href="${esc(l.link)}" data-i="${i}"><span class="tx">${l.html}</span></a>`
-      : `<div class="rp-line" data-i="${i}"><span class="tx">${l.html}</span></div>`)).join('')}
+    ${lines.map((l, i) => (l.toggle
+      ? `<button type="button" class="rp-line" data-toggle-sub aria-expanded="false" data-i="${i}"><span class="tx">${l.html}</span></button>`
+      : l.link
+        ? `<a class="rp-line${l.sub ? ' rp-sub' : ''}" href="${esc(l.link)}" data-i="${i}"${l.sub ? ' hidden' : ''}><span class="tx">${l.html}</span></a>`
+        : `<div class="rp-line" data-i="${i}"><span class="tx">${l.html}</span></div>`)).join('')}
     <span class="cursor"></span>`;
   $('#rpModules').innerHTML = APPS.map((a, i) => {
     const r = results[a.id];
@@ -369,7 +390,7 @@ $('#speakBtn').addEventListener('click', () => {
   const btn = $('#speakBtn');
   if (btn.classList.contains('on')) { stopSpeaking(); return; }
   btn.classList.add('on');
-  const text = [M.report.intro(greeting()).replace(/:$/, ''), ...reportLines().map((l) => l.text)].join(' . ');
+  const text = [M.report.intro(greeting()).replace(/:$/, ''), ...reportLines().filter((l) => !l.sub).map((l) => l.text)].join(' . ');
   speak(text, () => btn.classList.remove('on'));
 });
 
@@ -441,7 +462,51 @@ $('#micBtn').addEventListener('click', () => {
 $('#orbBtn').addEventListener('click', () => openReport());
 $('#reportBack').addEventListener('click', () => closeReport());
 $('#syncSkip').addEventListener('click', hideSync);
-document.addEventListener('click', (e) => { if (e.target.closest('[data-report]')) openReport(); });
+document.addEventListener('click', (e) => {
+  if (e.target.closest('[data-report]')) openReport();
+  // กาง/หุบรายการย่อยของแจ้งเตือนที่รวมหลายงวด
+  const t = e.target.closest('[data-toggle]');
+  if (t) {
+    const sub = t.nextElementSibling;
+    const open = sub.hidden;
+    sub.hidden = !open;
+    t.setAttribute('aria-expanded', String(open));
+  }
+  const ts = e.target.closest('[data-toggle-sub]');
+  if (ts) {
+    const open = ts.getAttribute('aria-expanded') !== 'true';
+    ts.setAttribute('aria-expanded', String(open));
+    for (let n = ts.nextElementSibling; n && n.classList.contains('rp-sub'); n = n.nextElementSibling) n.hidden = !open;
+  }
+});
+
+/* ---------- หน้าตั้งค่า (ที่เดียวของ Alpha) ---------- */
+function renderSettings() {
+  $('#setTitle').textContent = M.settings.title;
+  $('#paceLabel').textContent = M.settings.paceLabel;
+  $('#paceHint').textContent = M.settings.paceHint;
+  $('#paceMin').value = settings.paceMin;
+}
+function openSettings() {
+  renderSettings();
+  const el = $('#settings');
+  el.hidden = false;
+  el.scrollTop = 0;
+}
+function closeSettings() {
+  const el = $('#settings');
+  el.classList.add('closing');
+  setTimeout(() => { el.hidden = true; el.classList.remove('closing'); }, reduceMotion ? 0 : 400);
+}
+$('#settingsBtn').addEventListener('click', openSettings);
+$('#settingsBack').addEventListener('click', closeSettings);
+$('#paceMin').addEventListener('change', (e) => {
+  const v = Math.max(0, Math.round(Number(e.target.value) || 0));
+  settings.paceMin = v;
+  e.target.value = v;
+  saveSettings();
+  renderHome();
+});
 // กลับมาที่ Hub (เช่นกดกลับจากแอป หรือสลับแอป) แล้วข้อมูลเก่ากว่า 2 นาที ให้ดึงใหม่เงียบ ๆ
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && (!syncedAt || Date.now() - syncedAt > 120000)) refresh();
