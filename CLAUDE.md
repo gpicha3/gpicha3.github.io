@@ -17,7 +17,11 @@
 | `styles.css` | ธีมออโรร่า ม่วง-ชมพู รองรับ safe-area |
 | `templates/summary.template.js` | template สำหรับ summary.js ของแอปใหม่ |
 
-localStorage ที่ Hub ใช้: `hub.cache.v1` (ผลสรุปล่าสุด) · sessionStorage: `hub.syncShown`
+localStorage ที่ Alpha ใช้: `hub.cache.v1` (ผลสรุปล่าสุด) · `hub.voice` (โหมดเสียง) · `alpha.settings` (ตั้งค่า) ·
+`alpha.theme` (ธีมสี — fuel-logger/finance-app อ่าน key นี้ใน theme.js ของตัวเองด้วย ดูตาราง apps ใน `alpha-theme.js`) · sessionStorage: `hub.syncShown`
+
+ไฟล์อื่น: `alpha-theme.js` (ธีม 6 ชุด โหลดใน head) · `assets/alpha-character.png` (ตัวละคร ห้ามแก้หน้า/ผม) ·
+`assets/alpha-shirt-mask.png` (mask เฉพาะเสื้อ ใช้ tint สีตามธีม)
 
 ## ขั้นตอนเพิ่มแอปเข้า Hub
 
@@ -25,6 +29,9 @@ localStorage ที่ Hub ใช้: `hub.cache.v1` (ผลสรุปล่�
 2. **ถ้าต้องการการ์ดสรุป/แจ้งเตือน**: ก๊อป `templates/summary.template.js` ไปเป็น `<แอป>/summary.js` แล้วใส่ `summary` และ `setupLink` ใน config
    - contract: `export async function getSummary()` คืน
      `{ app, title, stats: [{label, value, unit}], alerts: [{level: "urgent"|"soon"|"info", text, dueDate, link}], brief?: string[], needsSetup?: true }`
+   - ช่องเสริมของ alert: `items: [{text, link}]` = รายการย่อย (Alpha แสดงบรรทัดเดียว กดแล้วกาง) ·
+     `kind: "pace", amount` = Alpha ซ่อนถ้า amount < เกณฑ์ในหน้าตั้งค่า (`alpha.settings.paceMin`, ค่าเริ่มต้น 100)
+   - เรื่องเงิน/งวดผ่อนทั้งหมดมาจาก finance-app ที่เดียว (fuel-logger ส่งเฉพาะเรื่องรถ)
    - ใช้สูตรตัวเดียวกับแอป ห้ามเขียนซ้ำ ถ้าสูตรปนอยู่กับโค้ดหน้าจอ ให้แยกเป็นไฟล์ที่ไม่แตะ DOM (เช่น `core.js`) แล้วให้ทั้งแอปและ summary.js ใช้ร่วมกัน
    - ยังไม่ตั้งค่า → คืน `{ needsSetup: true }` · โหลดไม่สำเร็จ → `throw` (Hub แสดงการ์ด OFFLINE ให้เอง หน้าอื่นไม่พัง)
    - `link` ใช้ hash เปิดหน้าในแอปได้ เช่น `/fuel-logger/#loan` (แอปต้องอ่าน `location.hash` ตอนเปิด)
