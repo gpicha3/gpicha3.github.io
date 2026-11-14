@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#07040f">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Hub">
+  <meta name="description" content="รวมแอปส่วนตัว พร้อมสรุปและแจ้งเตือนจากทุกแอป">
+  <title>Hub</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/icon-180.png">
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="aurora" aria-hidden="true"></div>
+
+  <!-- หน้าแรก -->
+  <main class="home" id="home">
+    <div class="hud-top mono"><span class="live" id="liveState"><i></i><b>ONLINE</b></span><span id="hudDate"></span></div>
+
+    <button type="button" class="orb-btn" id="orbBtn" aria-label="เปิดหน้าสรุป">
+      <span class="orb orb-lg" aria-hidden="true"><i class="orb-core"></i><i class="ring r1"></i><i class="ring r2"></i><i class="spark s1"></i><i class="spark s2"></i></span>
+      <span class="orb-hint">แตะเพื่อฟังสรุป</span>
+    </button>
+
+    <header class="greet">
+      <h1 id="greet">สวัสดี</h1>
+      <p id="headline">กำลังโหลด…</p>
+    </header>
+
+    <section class="alerts" id="alerts" aria-live="polite"></section>
+    <section class="apps" id="apps"></section>
+  </main>
+
+  <!-- ช่องสั่งงาน -->
+  <div class="answer" id="answer" role="status" hidden></div>
+  <form class="cmd glass" id="cmd" autocomplete="off">
+    <span class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+    <input id="cmdInput" type="text" enterkeyhint="go" placeholder="สั่งงาน เช่น เงินเหลือเท่าไหร่" aria-label="สั่งงาน">
+    <button type="button" class="mic" id="micBtn" aria-label="พูดคำสั่ง">
+      <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+    </button>
+  </form>
+
+  <!-- หน้าซิงก์ตอนเปิดแอป -->
+  <section class="overlay sync" id="sync" aria-label="กำลังซิงก์" hidden>
+    <div class="hud-top mono"><span class="live warn"><i></i><b>SYNCING</b></span><span id="syncCount"></span></div>
+    <span class="orb orb-xl spinning" aria-hidden="true"><i class="orb-core"></i><i class="ring r1"></i><i class="ring r2"></i><i class="spark s1"></i><i class="spark s2"></i></span>
+    <h2>กำลังเชื่อมต่อข้อมูล…</h2>
+    <p id="syncSub">ดึงข้อมูลล่าสุดจากทุกแอป</p>
+    <div class="glass mono sync-log" id="syncLog"></div>
+    <div id="syncIssues"></div>
+    <button type="button" class="skip" id="syncSkip">ข้าม ›</button>
+  </section>
+
+  <!-- หน้ารายงาน -->
+  <section class="overlay report" id="report" aria-label="รายงาน" hidden>
+    <header class="rp-head">
+      <button type="button" class="back" id="reportBack" aria-label="กลับ"><svg viewBox="0 0 8 14"><path d="M6.5 1.5L1.5 7l5 5.5"/></svg></button>
+      <span class="orb orb-sm" aria-hidden="true"><i class="orb-core"></i><i class="ring r1"></i><i class="ring r2"></i></span>
+      <div class="rp-title"><b class="mono">HUB.AI</b><small class="mono" id="rpState"></small></div>
+      <button type="button" class="speak" id="speakBtn" aria-label="อ่านให้ฟัง">
+        <svg viewBox="0 0 24 24"><path d="M4 10v4h4l5 4V6L8 10z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>
+      </button>
+    </header>
+    <div class="rp-body mono" id="rpBody"></div>
+    <div class="rp-label mono">// MODULES</div>
+    <div class="rp-modules mono" id="rpModules"></div>
+  </section>
+
+  <script type="module" src="/hub.js"></script>
+</body>
+</html>
