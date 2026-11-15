@@ -22,6 +22,7 @@ export const app = 'my-app'; // TODO: ตรงกับ id ใน config.js ข
  *   app: string, title: string, needsSetup?: boolean,
  *   stats: { label: string, value: string, unit: string }[],          // 2–3 ค่า ตัวแรกแสดงตัวใหญ่บนการ์ด
  *   alerts: { level: 'urgent'|'soon'|'info', text: string, dueDate: string|null, link: string }[],
+ *   facts?: object,                                                     // ข้อมูลดิบให้ hub แต่งประโยคพูด (ห้ามส่งประโยค) ดู CLAUDE.md
  *   brief?: string[]                                                    // บรรทัดสรุปในหน้ารายงาน
  * }>}
  */

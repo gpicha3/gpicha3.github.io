@@ -2,6 +2,10 @@
 import APPS from './config.js';
 import { runCommand } from './commands.js';
 import { M, greeting } from './messages.js';
+import { loadMessages, compose, wrap } from './speech.js';
+import { mountFace } from './alpha-face.js';
+
+await loadMessages();
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -23,9 +27,9 @@ const session = {
 };
 
 // การตั้งค่าของ Alpha (ที่เดียว): paceMin = แจ้ง "ใช้เร็วกว่าแผน" เมื่อเกินกี่บาท
-// tightPerDay / overMid / overHigh = เกณฑ์เลือกประโยคสรุปค่ากิน (ดู speechMoney)
+// tightPerDay / lowPerDay / overMid / overHigh = เกณฑ์เลือกระดับค่ากิน (ดู speech.js → foodLevel)
 const SETTINGS_KEY = 'alpha.settings';
-const DEFAULT_SETTINGS = { paceMin: 100, morningBrief: true, tightPerDay: 200, overMid: 300, overHigh: 1000 };
+const DEFAULT_SETTINGS = { paceMin: 100, morningBrief: true, tightPerDay: 200, lowPerDay: 100, overMid: 300, overHigh: 1000 };
 const settings = { ...DEFAULT_SETTINGS, ...store.get(SETTINGS_KEY, {}) };
 const saveSettings = () => store.set(SETTINGS_KEY, settings);
 
@@ -105,6 +109,7 @@ function renderHome() {
   }
 
   $('#apps').innerHTML = APPS.map(appCard).join('');
+  if (hasData && !syncing) setEmotion(brief().emotion);
 }
 
 const PLAY = '<svg class="play" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h4l5 4V6L8 10z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/></svg>';
@@ -228,52 +233,40 @@ async function refresh() {
 
 /* ---------- หน้ารายงาน ---------- */
 let typingTimer = null;
-const pick = (list) => list[Math.floor(Math.random() * list.length)];
-const int = (n) => Math.round(Number(n) || 0).toLocaleString('th-TH');
 const factsOf = (id) => (results[id]?.status !== 'setup' && results[id]?.summary?.facts) || null;
+// แอปที่ส่ง facts มา = hub แต่งประโยคเรื่องของแอปนั้นเองทั้งหมด (แจ้งเตือนของแอปนั้นไม่ต้องอ่านซ้ำ)
+const SPEECH_APPS = new Set(['finance-app', 'fuel-logger']);
 
-// ค่ากิน: A ยังสบาย · B ใช้ได้ต่อวันต่ำกว่าเกณฑ์ · เกินงบ C (เบา) / D (เกิน ≥ overMid) / E (เกิน ≥ overHigh หรือรอบก่อนก็เกิน)
-function speechMoney(f) {
-  if (!f || !Number.isFinite(f.left)) return null;
-  const v = { left: int(f.left), perDay: int(f.perDay), daysToPayday: f.days, over: int(f.over) };
-  const S = M.speech;
-  if (f.over > 0) {
-    const lvl = f.over >= settings.overHigh || f.prevOver ? 'E' : f.over >= settings.overMid ? 'D' : 'C';
-    return pick(S[lvl])(v);
+// สรุปทั้งวัน: ค่ากิน (+วันเงินเดือนเข้า) → ค่างวด → รถ → เรื่องอื่นๆ (แจ้งเตือนจากแอปอื่น) → แอปที่ยังไม่ได้ตั้งค่า
+// ใช้ข้อความชุดเดียวกันทั้งบนจอและตอนอ่านออกเสียง
+function brief() {
+  const fin = factsOf('finance-app');
+  const fuel = factsOf('fuel-logger');
+  const finPath = APPS.find((a) => a.id === 'finance-app')?.path;
+  const fuelPath = APPS.find((a) => a.id === 'fuel-logger')?.path;
+  const links = {
+    food: finPath && `${finPath}#today`, install: finPath && `${finPath}#loans`,
+    fuel: fuelPath && `${fuelPath}#add`, care: fuelPath && `${fuelPath}#care`,
+  };
+  const b = compose({ fin, fuel, settings, links });
+  const items = b.topics.map((t) => ({ text: t.text, link: t.link }));
+  for (const a of allAlerts()) {
+    if (SPEECH_APPS.has(a.app.id) && factsOf(a.app.id)) continue;
+    items.push({ text: a.text, link: a.items?.length ? null : a.link || a.app.path, group: a.items?.length ? a : null });
   }
-  return pick(f.perDay >= settings.tightPerDay ? S.A : S.B)(v);
-}
-
-// เรื่องที่ประโยคพูดครอบคลุมแล้ว ไม่ต้องแสดงซ้ำ (ค่ากิน · งวดผ่อน · เงินเดือนเข้า · น้ำมันใกล้หมด)
-function coveredBySpeech(a, money, fuel) {
-  if (a.app.id === 'finance-app') return money != null && (a.kind === 'pace' || a.kind === 'installment' || /งบ|เงินเดือน/.test(a.text));
-  if (a.app.id === 'fuel-logger') return fuel && /น้ำมัน/.test(a.text);
-  return false;
+  if (items.length && !b.nothing) wrap(items.map((i) => i.text)).forEach((t, i) => { items[i].text = t; });
+  return { items, emotion: b.emotion };
 }
 
 let lastLines = [];
 function reportLines() {
-  const S = M.speech;
-  const fin = factsOf('finance-app');
-  const fuel = factsOf('fuel-logger');
-  const finApp = APPS.find((a) => a.id === 'finance-app');
-  const fuelApp = APPS.find((a) => a.id === 'fuel-logger');
+  const { items, emotion } = brief();
+  setEmotion(emotion);
   const lines = [];
-  const say = (text, link) => text && lines.push({ html: `&gt; ${esc(text)}`, text, link });
-
-  // 1) ค่ากิน + วันเงินเดือนเข้า  2) ค่างวด  3) รถ — ไม่มีข้อมูลก็ข้าม
-  const money = speechMoney(fin);
-  say(money, finApp && `${finApp.path}#today`);
-  if (fin?.install) say(pick(S.install)({ installDays: fin.install.days, installCount: fin.install.count, installTotal: int(fin.install.total) }), finApp && `${finApp.path}#loans`);
-  const carLow = !!fuel?.fuelLow;
-  if (carLow) say(pick(S.car)({ kmPerL: fuel.kmPerL ? Math.round(fuel.kmPerL) : '–' }), fuelApp && `${fuelApp.path}#add`);
-
-  // เรื่องอื่นที่ยังไม่ได้พูด (เช่น เช็กระยะ ต่อภาษี งวดสุดท้าย)
-  for (const a of allAlerts()) {
-    if (coveredBySpeech(a, money, carLow)) continue;
-    const group = a.items?.length ? a.items : null;
-    lines.push({ html: `&gt; ${esc(a.text)}${group ? ' <span class="go">▾</span>' : ''}`, text: a.text, link: group ? null : a.link || a.app.path, toggle: !!group });
-    if (group) for (const it of group) lines.push({ html: `<span class="go">└</span> ${esc(it.text)}`, link: it.link || a.link || a.app.path, sub: true });
+  for (const it of items) {
+    const g = it.group;
+    lines.push({ html: `&gt; ${esc(it.text)}${g ? ' <span class="go">▾</span>' : ''}`, text: it.text, link: it.link, toggle: !!g });
+    if (g) for (const sub of g.items) lines.push({ html: `<span class="go">└</span> ${esc(sub.text)}`, link: sub.link || g.link || g.app.path, sub: true });
   }
   for (const a of APPS) {
     const r = results[a.id];
@@ -392,12 +385,13 @@ function speak(raw, onEnd) {
   if (voice) u.voice = voice;
   u.rate = 1.02;
   setSpeaking(true);
+  faces.forEach((f) => f.talk(true));
   u.onboundary = () => {
     const a = $('#alpha');
     a.classList.add('bump');
     setTimeout(() => a.classList.remove('bump'), 120);
   };
-  u.onend = u.onerror = () => { setSpeaking(false); onEnd?.(); };
+  u.onend = u.onerror = () => { setSpeaking(false); faces.forEach((f) => f.talk(false)); onEnd?.(); };
   speechSynthesis.speak(u);
 }
 function setSpeaking(on) {
@@ -407,6 +401,7 @@ function setSpeaking(on) {
 function stopSpeaking() {
   if (canSpeak) speechSynthesis.cancel();
   setSpeaking(false);
+  faces.forEach((f) => f.talk(false));
   $('#speakBtn').classList.remove('on');
 }
 function renderVoice() {
@@ -434,7 +429,7 @@ $('#speakBtn').addEventListener('click', () => {
   btn.classList.add('on');
   // อ่านประโยคชุดเดียวกับที่แสดงอยู่ (ไม่สุ่มใหม่)
   const lines = $('#report').hidden || !lastLines.length ? reportLines() : lastLines;
-  const text = [M.report.intro(greeting()), ...lines.filter((l) => !l.sub && l.text).map((l) => l.text)].join(' . ');
+  const text = lines.filter((l) => !l.sub && l.text).map((l) => l.text).join(' . ');
   speak(text, () => btn.classList.remove('on'));
 });
 
@@ -768,6 +763,17 @@ function morningBrief() {
     if (voiceMode === 'device') setTimeout(() => $('#speakBtn').click(), 700);
   };
   setTimeout(go, $('#sync').hidden ? 300 : 1900);
+}
+
+/* ---------- ตัวละครมีอารมณ์ (alpha-face.js) ---------- */
+// หน้าแรก + avatar หน้าสรุป เปลี่ยนอารมณ์ตามสรุป · หน้าซิงก์ = ท่าทำงาน
+const faces = [mountFace($('#alpha .char')), mountFace($('#rpAvatar .char'))];
+mountFace($('#sync .char')).setEmotion('work');
+let curEmotion = null;
+function setEmotion(e) {
+  if (e === curEmotion) return;
+  curEmotion = e;
+  faces.forEach((f) => f.setEmotion(e));
 }
 
 /* ---------- เริ่ม ---------- */

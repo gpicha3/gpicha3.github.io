@@ -13,11 +13,14 @@
 | `config.js` | รายการแอปทั้งหมด (แก้ที่นี่ที่เดียวเมื่อเพิ่มแอป) |
 | `hub.js` | หน้าแรก, หน้าซิงก์, หน้ารายงาน, โหลด summary แบบขนาน + cache |
 | `commands.js` | คำสั่งสำเร็จรูปของช่องสั่งงาน (จับคำสำคัญ ไม่ใช้ AI) |
-| `messages.js` | คำพูดทั้งหมดของ AI (ผู้หญิง ลงท้าย ค่ะ/คะ) แก้ข้อความที่นี่ที่เดียว |
+| `messages.js` | ข้อความบนหน้าจอของ AI (ผู้หญิง ลงท้าย ค่ะ/คะ) |
+| `messages/th.json` | ประโยคสรุปแบบพูดทั้งหมด (ตาราง key อยู่ที่ `messages/README.md`) |
+| `speech.js` | แต่งประโยคสรุปจาก `facts` ของแต่ละแอป: เลือก key, สุ่มแบบ seed รายวัน, กันซ้ำ, หัว/ท้าย |
+| `alpha-face.js` | ตัวละครมีอารมณ์ (SVG วาดทับรูป) · ตำแหน่งตา/ปากอยู่ใน `FACE` ที่เดียว |
 | `styles.css` | ธีมออโรร่า ม่วง-ชมพู รองรับ safe-area |
 | `templates/summary.template.js` | template สำหรับ summary.js ของแอปใหม่ |
 
-localStorage ที่ Alpha ใช้: `hub.cache.v1` (ผลสรุปล่าสุด) · `hub.voice` (โหมดเสียง) · `alpha.settings` (ตั้งค่า) ·
+localStorage ที่ Alpha ใช้: `hub.cache.v1` (ผลสรุปล่าสุด) · `hub.voice` (โหมดเสียง) · `hub.speech.v1` (ประโยคที่ใช้ล่าสุดของแต่ละ key) · `alpha.settings` (ตั้งค่า) ·
 `alpha.theme` (ธีมสี — fuel-logger/finance-app อ่าน key นี้ใน theme.js ของตัวเองด้วย ดูตาราง apps ใน `alpha-theme.js`) · sessionStorage: `hub.syncShown`
 
 ไฟล์อื่น: `alpha-theme.js` (ธีม 6 ชุด โหลดใน head) · `assets/alpha-character.png` (ตัวละคร ห้ามแก้หน้า/ผม) ·
@@ -28,7 +31,12 @@ localStorage ที่ Alpha ใช้: `hub.cache.v1` (ผลสรุปล่
 1. **เพิ่ม entry ใน `config.js`**: `id`, `name`, `desc`, `path`, `icon`, `color` (+ `keywords` สำหรับสั่ง "เปิด …")
 2. **ถ้าต้องการการ์ดสรุป/แจ้งเตือน**: ก๊อป `templates/summary.template.js` ไปเป็น `<แอป>/summary.js` แล้วใส่ `summary` และ `setupLink` ใน config
    - contract: `export async function getSummary()` คืน
-     `{ app, title, stats: [{label, value, unit}], alerts: [{level: "urgent"|"soon"|"info", text, dueDate, link}], brief?: string[], needsSetup?: true }`
+     `{ app, title, stats: [{label, value, unit}], alerts: [{level: "urgent"|"soon"|"info", text, dueDate, link}], facts?: {...}, brief?: string[], needsSetup?: true }`
+   - `facts` = ข้อมูลดิบ (ตัวเลข/สถานะ) สำหรับสรุปแบบพูด **แอปไม่ส่งประโยค** hub เป็นที่เดียวที่แปลงเป็นประโยค (`speech.js` + `messages/th.json`)
+     finance-app: `{ left, perDay, daysToPayday, over, prevOver, prevLeft, installments: [{days, count, total}], lastInstallments: [name] }`
+     fuel-logger: `{ fuelLow, kmPerL, reminders: [{type: service|appt|tax|insurance|act, days, byKm?, leftKm?, near?}] }`
+     แอปใหม่ที่อยากมีประโยคพูด: เพิ่ม key ใน `messages/th.json` + ส่วนเลือก key ใน `speech.js` → `compose()` และใส่ id ใน `SPEECH_APPS` (hub.js)
+     แอปที่ไม่มี facts: hub อ่าน `alerts[].text` ต่อท้ายเป็น "เรื่องอื่นๆ"
    - ช่องเสริมของ alert: `items: [{text, link}]` = รายการย่อย (Alpha แสดงบรรทัดเดียว กดแล้วกาง) ·
      `kind: "pace", amount` = Alpha ซ่อนถ้า amount < เกณฑ์ในหน้าตั้งค่า (`alpha.settings.paceMin`, ค่าเริ่มต้น 100)
    - เรื่องเงิน/งวดผ่อนทั้งหมดมาจาก finance-app ที่เดียว (fuel-logger ส่งเฉพาะเรื่องรถ)
