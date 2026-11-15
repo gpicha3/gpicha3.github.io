@@ -29,15 +29,17 @@ function seeded(str) {
   return (h >>> 0) / 4294967296;
 }
 
-function pickIndex(key, n) {
+// daily = false: ไม่ใช้ seed วันที่ (สุ่มใหม่ทุกครั้ง แต่ยังกันซ้ำ 5 ครั้งล่าสุด) เช่น tease-repeat, uncertain-command
+function pickIndex(key, n, daily = true) {
   if (n <= 1) return 0;
   const today = dayKey();
   const all = store.get();
   const h = all[key] || { recent: [] };
-  if (h.day === today && h.idx < n) return h.idx;
+  if (daily && h.day === today && h.idx < n) return h.idx;
   const avoid = new Set((h.recent || []).slice(-Math.min(RECENT, n - 1)));
   const choices = [...Array(n).keys()].filter((i) => !avoid.has(i));
-  const idx = choices[Math.floor(seeded(`${today}|${key}`) * choices.length)];
+  const r = daily ? seeded(`${today}|${key}`) : Math.random();
+  const idx = choices[Math.floor(r * choices.length)];
   all[key] = { day: today, idx, recent: [...(h.recent || []), idx].slice(-RECENT) };
   store.set(all);
   return idx;
@@ -47,10 +49,10 @@ const fmt = (v) => (typeof v === 'number' ? Math.round(v).toLocaleString('th-TH'
 const missing = (v) => v == null || (typeof v === 'number' && !Number.isFinite(v)) || v === '';
 
 // เลือกประโยคจาก messages[key] แล้วแทนค่า {ตัวแปร} · ขาดตัวแปร → null
-export function render(key, vars = {}) {
+export function render(key, vars = {}, { daily = true } = {}) {
   const list = DATA.messages?.[key];
   if (!list?.length) return null;
-  const tpl = list[pickIndex(key, list.length)];
+  const tpl = list[pickIndex(key, list.length, daily)];
   let bad = false;
   const text = tpl.replace(/\{(\w+)\}/g, (_, k) => {
     if (missing(vars[k])) { bad = true; return ''; }
@@ -80,23 +82,42 @@ export function foodLevel(f, s) {
 }
 
 const EMOTION = { A: 'ok', B: 'advise', F: 'worry', C: 'no', D: 'no', E: 'sulk' };
+// ลำดับความสำคัญ (เลขน้อย = สำคัญกว่า) ถ้าเข้าหลายเงื่อนไข แสดงอารมณ์ที่สำคัญที่สุด
+// ขอโทษ > เป็นห่วง > ขอขัด > ไม่เห็นด้วย/งอน > ไม่แน่ใจ > โอเค/แนะนำ > แซว > ทักทาย
+export const RANK = { sorry: 0, worry: 1, interrupt: 2, no: 3, sulk: 3, unsure: 4, ok: 5, advise: 5, tease: 6, greet: 7 };
+const top = (list) => list.reduce((best, e) => (RANK[e] < RANK[best] ? e : best), 'greet');
+const daysSince = (isoDate, now) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(isoDate || '');
+  if (!m) return null;
+  const a = Date.UTC(+m[1], m[2] - 1, +m[3]);
+  const b = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((b - a) / 864e5);
+};
+const MISSING_NAME = { money: 'เรื่องเงิน', car: 'เรื่องรถ' };
 
 /**
  * ประกอบสรุปทั้งวัน
- * @param {{ fin?: object, fuel?: object, settings: object, links?: object }} p
- * @returns {{ topics: {key, text, link, group}[], level: string|null, emotion: string, nothing: boolean }}
+ * @param {{ fin?: object, fuel?: object, settings: object, links?: object,
+ *           failed?: { money?: boolean, car?: boolean }, allFailed?: boolean, now?: Date }} p
+ *   failed = แอปที่โหลดไม่สำเร็จรอบนี้ (ไม่ใช้ข้อมูลเก่าของแอปนั้น และบอกว่าส่วนไหนขาด)
+ * @returns {{ topics: {group, key, text, link}[], level: string|null, emotion: string, nothing: boolean }}
  * topics เรียงตาม: ค่ากิน (+วันเงินเดือนเข้า) → ค่างวด → รถ
  */
-export function compose({ fin, fuel, settings, links = {} }) {
+export function compose({ fin, fuel, settings, links = {}, failed = {}, allFailed = false, now = new Date() }) {
   const topics = [];
+  const emotions = [];
   let late = false;
   const add = (group, key, vars, link) => {
     const text = render(key, vars);
     if (text) topics.push({ group, key, text, link });
     return !!text;
   };
+  const partial = (what, link) => { if (add('unsure', 'uncertain-partial', { missing: MISSING_NAME[what] }, link)) emotions.push('unsure'); };
+  if (failed.money) fin = null;
+  if (failed.car) fuel = null;
 
-  // 1) ค่ากิน + วันเงินเดือนเข้า
+  // 1) ค่ากิน + วันเงินเดือนเข้า (+ ไม่แน่ใจ: ไม่มีรายการค่ากินมาหลายวัน)
+  if (failed.money) partial('money', links.food);
   const level = foodLevel(fin, settings);
   if (level) {
     const over = ['C', 'D', 'E'].includes(level);
@@ -109,6 +130,8 @@ export function compose({ fin, fuel, settings, links = {} }) {
     } else {
       add('food', `food-${level}`, { left: fin.left, perDay: fin.perDay, daysToPayday: fin.daysToPayday, over: fin.over }, links.food);
     }
+    const noLog = daysSince(fin.lastLogDate, now);
+    if (noLog >= 2 && add('unsure', 'uncertain-no-log', { days: noLog }, links.food)) emotions.push('unsure');
   }
 
   // 2) ค่างวด (งวดที่ใกล้สุด) + งวดสุดท้าย
@@ -121,7 +144,8 @@ export function compose({ fin, fuel, settings, links = {} }) {
   }
   for (const name of fin?.lastInstallments || []) add('install', 'install-last', { name }, links.install);
 
-  // 3) รถ: น้ำมันใกล้หมด → เช็กระยะ → ต่อภาษี/ประกัน/พ.ร.บ. (เรียงตามวัน)
+  // 3) รถ: น้ำมันใกล้หมด → เช็กระยะ → ต่อภาษี/ประกัน/พ.ร.บ. (เรียงตามวัน) (+ ไม่แน่ใจ: เลขไมล์เก่า)
+  if (failed.car) partial('car', links.care);
   if (fuel?.fuelLow) add('car', 'car-fuel-low', { kmPerL: fuel.kmPerL }, links.fuel);
   // เรียงตามวัน (เช็กระยะที่เลยกิโลแล้ว = เรื่องแรก)
   const when = (r) => (r.byKm && r.leftKm <= 0 ? -999 : r.days ?? 99);
@@ -138,6 +162,8 @@ export function compose({ fin, fuel, settings, links = {} }) {
     if (!k) continue;
     if (add('car', k.key, { ...k.vars, name: RENEW_NAME[r.type] }, links.care) && k.late) late = true;
   }
+  const oldMileage = daysSince(fuel?.mileageDate, now);
+  if (oldMileage > 14 && add('unsure', 'uncertain-old-mileage', { days: oldMileage }, links.care)) emotions.push('unsure');
 
   // ไม่มีเรื่องอะไรเลย และค่ากินระดับ A → ประโยคเดียว
   const nothing = level === 'A' && fin?.daysToPayday > 1 && topics.every((t) => t.group === 'food');
@@ -146,12 +172,38 @@ export function compose({ fin, fuel, settings, links = {} }) {
     if (text) topics.splice(0, topics.length, { group: 'nothing', key: 'nothing', text, link: links.food });
   }
 
-  // วันเงินเดือนเข้า: อารมณ์ตามรอบที่เพิ่งจบ (เกินงบ = ไม่เห็นด้วย)
-  const lv = fin?.daysToPayday === 0 && fin.prevLeft < 0 ? 'C' : level;
+  // อารมณ์
+  if (allFailed) emotions.push('sorry');
+  if (late) emotions.push('worry');
   // มีเรื่องครบกำหนดวันนี้ (ค่างวด / เช็กระยะ / นัดศูนย์ / ต่อภาษี ประกัน พ.ร.บ.) → ขอขัด
-  const dueToday = topics.some((t) => t.key === 'install-today' || /^car-.*-today$/.test(t.key));
-  const emotion = late ? 'worry' : dueToday ? 'interrupt' : nothing ? 'greet' : (lv && EMOTION[lv]) || 'greet';
-  return { topics, level, emotion, nothing };
+  if (topics.some((t) => t.key === 'install-today' || /^car-.*-today$/.test(t.key))) emotions.push('interrupt');
+  if (nothing) emotions.push('greet');
+  else if (level) {
+    // วันเงินเดือนเข้า: อารมณ์ตามรอบที่เพิ่งจบ (เกินงบ = ไม่เห็นด้วย)
+    const lv = fin.daysToPayday === 0 && fin.prevLeft < 0 ? 'C' : level;
+    emotions.push(EMOTION[lv]);
+  }
+  return { topics, level, emotion: top(emotions), nothing };
+}
+
+/* ---------- แซว: นานๆ ครั้ง วันละไม่เกิน 1 ครั้ง เฉพาะวันที่ไม่มีเรื่องน่าห่วง ---------- */
+// เงื่อนไข (เลือกตามลำดับ): ดึก 02:30–05:59 > ฟังสรุปรอบที่ 3 ขึ้นไปในวันเดียว > เมื่อวานใช้ค่ากิน > 0 แต่ไม่ถึงครึ่งของแผนต่อวัน
+const TEASE_KEY = 'hub.tease';
+export function teaseUsedToday() {
+  try { return localStorage.getItem(TEASE_KEY) === dayKey(); } catch { return false; }
+}
+export function pickTease({ emotion, fin, listens = 0, now = new Date() }) {
+  if (RANK[emotion] < RANK.ok || teaseUsedToday()) return null;
+  const hm = now.getHours() * 60 + now.getMinutes();
+  let text = null;
+  if (hm >= 150 && hm < 360) text = render('tease-late-night', {});
+  if (!text && listens >= 3) text = render('tease-repeat', { count: listens }, { daily: false });
+  if (!text && fin && fin.yesterdaySpent > 0 && fin.dailyPlan > 0 && fin.yesterdaySpent < fin.dailyPlan / 2) {
+    text = render('tease-low-spend', { yesterday: fin.yesterdaySpent });
+  }
+  if (!text) return null;
+  try { localStorage.setItem(TEASE_KEY, dayKey()); } catch { /* ignore */ }
+  return { group: 'tease', key: 'tease', text };
 }
 
 // หัว (ครั้งเดียวตอนต้น) + ท้าย (ครั้งเดียวตอนจบ) · ใช้ประโยคเต็มเท่านั้น

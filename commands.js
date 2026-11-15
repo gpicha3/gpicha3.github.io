@@ -1,5 +1,5 @@
 // คำสั่งสำเร็จรูปของช่องสั่งงาน (จับคำสำคัญ ไม่ใช้ AI ข้อมูลไม่ออกจากเครื่อง)
-// runCommand คืน { say, sub?, go?, report? }
+// runCommand คืน { say, sub?, go?, report?, unknown? }  (unknown = แกะคำสั่งไม่ออก hub ใช้ประโยค uncertain-command)
 //   say    ข้อความตอบกลับ (แสดง + อ่านออกเสียงถ้าสั่งด้วยเสียง)
 //   go     ลิงก์ที่จะเปิด
 //   report true = เปิดหน้ารายงาน
@@ -86,5 +86,5 @@ export function runCommand(text, ctx) {
   const app = appIn(q);
   if (app) return { say: M.cmd.openApp(app.name), go: app.path };
 
-  return { say: M.cmd.unknown, sub: M.cmd.unknownSub };
+  return { say: M.cmd.unknown, sub: M.cmd.unknownSub, unknown: true };
 }

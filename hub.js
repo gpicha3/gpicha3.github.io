@@ -2,7 +2,7 @@
 import APPS from './config.js';
 import { runCommand } from './commands.js';
 import { M, greeting } from './messages.js';
-import { loadMessages, compose, wrap } from './speech.js';
+import { loadMessages, compose, wrap, render as renderLine, pickTease, teaseUsedToday } from './speech.js';
 import { mountFace } from './alpha-face.js';
 
 await loadMessages();
@@ -239,7 +239,13 @@ const SPEECH_APPS = new Set(['finance-app', 'fuel-logger']);
 
 // สรุปทั้งวัน: ค่ากิน (+วันเงินเดือนเข้า) → ค่างวด → รถ → เรื่องอื่นๆ (แจ้งเตือนจากแอปอื่น) → แอปที่ยังไม่ได้ตั้งค่า
 // ใช้ข้อความชุดเดียวกันทั้งบนจอและตอนอ่านออกเสียง
-function brief() {
+function brief({ tease = null } = {}) {
+  const status = (id) => results[id]?.status;
+  // แอปที่โหลดไม่สำเร็จรอบนี้: ไม่ใช้ข้อมูลเก่า แล้วบอกว่าส่วนไหนขาด (ไม่แน่ใจ) · โหลดไม่ได้เลยสักแอป = ขอโทษ
+  // (โหลดไม่ได้ทุกแอป → สรุปจากข้อมูลล่าสุดที่จำไว้เหมือนเดิม แต่ตัวละครทำหน้าขอโทษ)
+  const live = APPS.filter((a) => a.summary && status(a.id) !== 'setup');
+  const allFailed = live.length > 0 && live.every((a) => status(a.id) === 'error');
+  const failed = allFailed ? {} : { money: status('finance-app') === 'error', car: status('fuel-logger') === 'error' };
   const fin = factsOf('finance-app');
   const fuel = factsOf('fuel-logger');
   const finPath = APPS.find((a) => a.id === 'finance-app')?.path;
@@ -248,21 +254,42 @@ function brief() {
     food: finPath && `${finPath}#today`, install: finPath && `${finPath}#loans`,
     fuel: fuelPath && `${fuelPath}#add`, care: fuelPath && `${fuelPath}#care`,
   };
-  const b = compose({ fin, fuel, settings, links });
+  const b = compose({ fin, fuel, settings, links, failed, allFailed });
   const items = b.topics.map((t) => ({ text: t.text, link: t.link }));
   for (const a of allAlerts()) {
-    if (SPEECH_APPS.has(a.app.id) && factsOf(a.app.id)) continue;
+    if (SPEECH_APPS.has(a.app.id)) continue;
     items.push({ text: a.text, link: a.items?.length ? null : a.link || a.app.path, group: a.items?.length ? a : null });
   }
+  // แซว: ต่อท้ายสรุป ก่อนส่วน "ท้าย"
+  if (tease) items.push({ text: tease.text, link: null });
   if (items.length && !b.nothing) wrap(items.map((i) => i.text)).forEach((t, i) => { items[i].text = t; });
-  // โหลดข้อมูลจากแอปไหนไม่สำเร็จ → ขอโทษ (ทับทุกอย่าง)
-  const anyError = Object.values(results).some((r) => r.status === 'error');
-  return { items, emotion: anyError ? 'sorry' : b.emotion };
+  return { items, emotion: tease ? 'tease' : b.emotion, fin: failed.money ? null : fin };
 }
+
+// จำนวนครั้งที่กดฟังสรุปวันนี้ (ใช้กับแซว "ฟังรอบที่ 3")
+const LISTEN_KEY = 'hub.listens';
+function bumpListen() {
+  const today = new Date().toDateString();
+  const v = store.get(LISTEN_KEY, {});
+  const count = (v.day === today ? v.count : 0) + 1;
+  store.set(LISTEN_KEY, { day: today, count });
+  return count;
+}
+const listenCount = () => { const v = store.get(LISTEN_KEY, {}); return v.day === new Date().toDateString() ? v.count : 0; };
+
+// แซวเลือกครั้งเดียวต่อการเปิดหน้าสรุปหนึ่งครั้ง (เปิดหน้าสรุปใหม่ = เลือกใหม่ แต่ทั้งวันแซวได้ครั้งเดียว)
+let reportSession = 0;
+let teaseMem = { session: -1, tease: null };
+let reteaseNext = false;
 
 let lastLines = [];
 function reportLines() {
-  const { items, emotion } = brief();
+  if (teaseMem.session !== reportSession || (reteaseNext && !teaseMem.tease)) {
+    const base = brief();
+    teaseMem = { session: reportSession, tease: pickTease({ emotion: base.emotion, fin: base.fin, listens: listenCount() }) };
+  }
+  reteaseNext = false;
+  const { items, emotion } = brief({ tease: teaseMem.tease });
   setEmotion(emotion);
   const lines = [];
   for (const it of items) {
@@ -325,6 +352,7 @@ function openReport({ push = true } = {}) {
   if (!el.hidden) return;
   el.hidden = false;
   el.scrollTop = 0;
+  reportSession++;
   renderReport();
   reportPushed = push;
   if (push) history.pushState({ report: true }, '', '#report');
@@ -425,9 +453,16 @@ $('#voiceSeg').addEventListener('click', (e) => {
 });
 $('#voiceTest').addEventListener('click', () => speak(M.voice.testText));
 renderVoice();
+let fromBrief = false; // ปุ่มอ่านถูกกดต่อจากชิปสรุป/สรุปตอนเช้า (นับการฟังไปแล้ว)
 $('#speakBtn').addEventListener('click', () => {
   const btn = $('#speakBtn');
   if (btn.classList.contains('on')) { stopSpeaking(); return; }
+  // กดฟังเองในหน้าสรุป = นับเป็นการฟังอีกรอบ ถ้าถึงรอบที่ 3 และวันนี้ยังไม่ได้แซว → สรุปใหม่ให้มีประโยคแซว
+  if (!fromBrief) {
+    const n = bumpListen();
+    if (!$('#report').hidden && n >= 3 && !teaseUsedToday()) { reteaseNext = true; renderReport(); }
+  }
+  fromBrief = false;
   btn.classList.add('on');
   // อ่านประโยคชุดเดียวกับที่แสดงอยู่ (ไม่สุ่มใหม่)
   const lines = $('#report').hidden || !lastLines.length ? reportLines() : lastLines;
@@ -460,11 +495,19 @@ function showAnswer(say, sub) {
   answerTimer = setTimeout(() => { el.hidden = true; }, 6500);
 }
 
+let unsureTimer = null;
 function handleCommand(text, { voice = false } = {}) {
   const res = runCommand(text, { apps: APPS, results, alerts: allAlerts() });
   if (!res) return;
   $('#cmdInput').value = '';
   $('#cmdInput').blur();
+  // แกะคำสั่งไม่ออก → ประโยค "ไม่แน่ใจ" + ตัวละครทำหน้าไม่แน่ใจระหว่างที่คำตอบขึ้นอยู่
+  if (res.unknown) {
+    res.say = renderLine('uncertain-command', {}, { daily: false }) || res.say;
+    faces.forEach((f) => f.setEmotion('unsure'));
+    clearTimeout(unsureTimer);
+    unsureTimer = setTimeout(() => faces.forEach((f) => f.setEmotion(curEmotion || 'greet')), 6500);
+  }
   showAnswer(res.say, res.sub);
   // โหมด Siri สลับแอปทุกครั้งที่พูด จึงพูดเฉพาะคำตอบที่ไม่ต้องเปิดหน้าอื่นต่อ
   if (voice && !(voiceMode === 'siri' && (res.go || res.report))) speak(res.sub ? `${res.say} ${res.sub}` : res.say);
@@ -517,8 +560,9 @@ $('#micBtn').addEventListener('click', () => {
 /* ---------- events ---------- */
 // แตะหัวข้อ (เช่น "2 เรื่องใกล้ถึง") = เปิดหน้าสรุปและอ่านให้ฟัง (โหมด Siri: เปิดหน้าอย่างเดียว ไม่สลับแอปเอง)
 $('#headline').addEventListener('click', () => {
+  bumpListen();
   openReport();
-  if (voiceMode === 'device') setTimeout(() => { if (!$('#speakBtn').classList.contains('on')) $('#speakBtn').click(); }, 350);
+  if (voiceMode === 'device') setTimeout(() => { if (!$('#speakBtn').classList.contains('on')) { fromBrief = true; $('#speakBtn').click(); } }, 350);
 });
 $('#reportBack').addEventListener('click', () => closeReport());
 $('#syncSkip').addEventListener('click', hideSync);
@@ -747,9 +791,10 @@ function morningBrief() {
   store.set(BRIEF_KEY, today);
   const go = () => {
     hideSync();
+    if (voiceMode === 'device') bumpListen();
     openReport();
     // iPhone อาจไม่ยอมให้เล่นเสียงเองโดยไม่ได้แตะ ถ้าไม่ได้ก็แสดงสรุปอย่างเดียว (โหมด Siri ไม่สลับแอปเอง)
-    if (voiceMode === 'device') setTimeout(() => $('#speakBtn').click(), 700);
+    if (voiceMode === 'device') setTimeout(() => { fromBrief = true; $('#speakBtn').click(); }, 700);
   };
   setTimeout(go, $('#sync').hidden ? 300 : 1900);
 }
