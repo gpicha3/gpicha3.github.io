@@ -35,9 +35,21 @@
       <button type="button" class="headline" id="headline" data-brief aria-label="ฟังสรุป">กำลังโหลด…</button>
     </header>
 
+    <button type="button" class="log-pending" id="logPending" hidden></button>
     <section class="alerts" id="alerts" aria-live="polite"></section>
     <section class="apps" id="apps"></section>
   </main>
+
+  <!-- จดรายรับรายจ่าย: การ์ดยืนยัน · แถบเลิกทำ · รายการรอส่ง -->
+  <div class="log-layer" id="logCard" hidden></div>
+  <div class="log-undo glass" id="logUndo" hidden><span id="logUndoText"></span><button type="button" id="logUndoBtn">เลิกทำ</button></div>
+  <section class="overlay log-queue" id="logQueue" aria-label="รายการรอส่ง" hidden>
+    <header class="rp-head">
+      <button type="button" class="back" id="logQueueBack" aria-label="กลับ"><svg viewBox="0 0 8 14"><path d="M6.5 1.5L1.5 7l5 5.5"/></svg></button>
+      <h2 class="set-title">รายการรอส่ง</h2>
+    </header>
+    <div class="set-stack" id="logQueueList"></div>
+  </section>
 
   <!-- ช่องสั่งงาน -->
   <div class="answer" id="answer" role="status" hidden></div>
@@ -111,6 +123,18 @@
       <label class="set-row" for="overHigh" style="margin-top:10px"><span id="overHighLabel"></span>
         <input id="overHigh" type="number" inputmode="numeric" min="0" step="100"></label>
       <p class="set-hint" id="speechHint"></p>
+    </div>
+    <div class="set-label">จดรายรับรายจ่ายจากช่องสั่งงาน</div>
+    <div class="glass set-card" style="margin-top:0">
+      <label class="set-col" for="logUrl"><span>URL เขียนชีต (เว้นว่าง = ใช้ลิงก์เดียวกับ Finance)</span>
+        <input id="logUrl" type="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://script.google.com/macros/s/…/exec"></label>
+      <label class="set-col" for="logToken" style="margin-top:10px"><span>รหัสเชื่อม (HUB_TOKEN)</span>
+        <input id="logToken" type="password" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+      <label class="set-row" for="lateCutoff" style="margin-top:10px"><span>ไม่ระบุวัน ก่อนกี่โมงให้ถือเป็นของเมื่อวาน (0 = ปิด)</span>
+        <input id="lateCutoff" type="number" inputmode="numeric" min="0" max="12" step="1"></label>
+      <p class="set-hint">ค่าน้ำมันกับรูดบัตรไม่จดตรงนี้ · ทุกรายการต้องกดยืนยันก่อนจด</p>
+      <div class="set-label" style="margin:14px 0 6px">คำที่ Alpha จำไว้</div>
+      <div id="learnedList" class="learned"></div>
     </div>
     <div class="set-label" id="voiceLabel"></div>
     <div class="glass rp-voice">

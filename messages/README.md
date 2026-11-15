@@ -73,6 +73,35 @@
 |---|---|
 | `nothing` | ไม่มีเรื่องใกล้กำหนดเลย และค่ากินระดับ A (พูดประโยคเดียว ไม่มีหัว/ท้าย) |
 
+## จดรายรับรายจ่าย (ช่องสั่งงาน · log/*) — ไม่ใช้ seed วันที่ (ตอบใหม่ทุกครั้ง แต่กันซ้ำ 5 ครั้งล่าสุด)
+
+| key | จังหวะ | อารมณ์ | ตัวแปร |
+|---|---|---|---|
+| `log-confirm-one` | การ์ดยืนยัน 1 รายการ | ทำงาน | item, amount, category |
+| `log-confirm-multi` | การ์ดยืนยันหลายรายการ | ทำงาน | count, total |
+| `log-confirm-income` | การ์ดยืนยันรายรับ | โอเค | amount, item |
+| `log-confirm-guess` | มีหมวดที่หนูเดา | ไม่แน่ใจ | – |
+| `log-confirm-late-night` | ไม่ระบุวัน + ก่อนตี 5 → ลงเมื่อวาน | ไม่แน่ใจ | – |
+| `log-confirm-ask-category` | ไม่รู้หมวด | แนะนำ | item |
+| `log-confirm-big` | กิน > 1,500 / อื่น > 5,000 | ขอขัด | amount |
+| `log-saved-food` + `log-saved-food-{A/B/F/C/D/E}` | จดหมวดกินสำเร็จ (ท่อนสองตามระดับ) | ตามระดับ | left, perDay, daysLeft |
+| `log-saved-food-over` | จดหมวดกินสำเร็จ แต่เกินงบแล้ว (แทน log-saved-food) | ตามระดับ | over, daysLeft |
+| `log-saved-other` | จดหมวดอื่นสำเร็จ | โอเค | item, amount, category |
+| `log-saved-multi` | จดหลายรายการสำเร็จ (มีกิน → ต่อด้วยท่อนระดับ) | โอเค/ตามระดับ | count, total |
+| `log-saved-income` | จดรายรับสำเร็จ | โอเค | amount |
+| `log-saved-prev-cycle` | จดลงรอบที่แล้ว | แนะนำ | cycleText |
+| `log-failed` | ชีตตอบว่าจดไม่ได้ | ขอโทษ | – |
+| `log-queued` | เน็ตหลุด เก็บเข้าคิว | ขอโทษ | pending |
+| `log-queue-sent` / `log-queue-failed` | ส่งคิวแล้ว / ค้างเกิน 3 วัน | โอเค / เป็นห่วง | count / pending |
+| `log-auth-failed` | รหัสผิดหรือยังไม่ได้ตั้ง | ขอโทษ | – |
+| `log-parse-fail` | ดูเหมือนจะจดแต่ไม่มีจำนวนเงิน | ไม่แน่ใจ | – |
+| `log-date-future` / `log-date-old` | วันในอนาคต / ย้อนเกิน 35 วัน | ไม่แน่ใจ | – |
+| `log-card-skip` | มีคำว่าบัตร/รูดบัตร | ขอขัด | – |
+| `log-cancelled` | ยกเลิกการ์ด | ทักทาย | – |
+| `log-undo-confirm` | ถามก่อนลบ (ชุดเดียว: item/amount/dateText · หลายรายการ: count) | แนะนำ | ดูช่องจังหวะ |
+| `log-undo-done` / `log-undo-done-late` | ลบภายใน 2 นาที / นานกว่านั้น | แซว / โอเค | – |
+| `log-undo-none` / `log-undo-blocked` | ไม่มีให้ลบ / มีแถวใหม่ต่อท้ายหรือถูกแก้ | ไม่แน่ใจ / ขอโทษ | – |
+
 ## อารมณ์ตัวละครตามสรุป (alpha-face.js)
 
 ถ้าเข้าหลายเงื่อนไข แสดงอารมณ์ที่ลำดับสูงสุด:

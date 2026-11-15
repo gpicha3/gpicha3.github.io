@@ -406,3 +406,49 @@ button.rp-line { font: inherit; color: inherit; }
 @keyframes fx-drip { 0% { transform: translateY(0); opacity: 1; } 80% { transform: translateY(22px); opacity: 0; } 100% { opacity: 0; } }
 @keyframes fx-twinkle { 0%, 100% { transform: scale(.6); opacity: .4; } 50% { transform: scale(1.1); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .fx-breath, .fx-motion, .fx-float, .fx-twinkle, .fx-drip { animation: none !important; } }
+
+/* ---------- จดรายรับรายจ่าย: การ์ดยืนยัน (log/card.js) ---------- */
+.log-layer { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; padding: 0 12px calc(env(safe-area-inset-bottom) + 12px); }
+.kb-open .log-layer { bottom: auto; top: calc(var(--vv-bottom) - 4px); translate: 0 -100%; }
+.lc { max-width: 492px; margin: 0 auto; padding: 14px; border-radius: 22px; background: color-mix(in srgb, var(--bg) 88%, var(--vi) 12%);
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, .35); animation: rise .25s var(--ease); max-height: 70vh; overflow-y: auto; }
+.lc-head { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+.lc-head .al-face { flex: none; width: 34px; height: 34px; border-radius: 50%; background: var(--glass); }
+.lc-head .al-face img { width: 54px; }
+.lc-say { margin: 0; font-size: 14px; line-height: 1.4; }
+.lc-type { font: inherit; font-size: 13px; padding: 4px 12px; border-radius: 99px; border: 1px solid var(--glass-line); background: none; color: var(--ink); margin-bottom: 8px; }
+.lc-type.out { color: var(--rd-ink, var(--rd)); } .lc-type.in { color: var(--gr); }
+.lc-row { padding: 8px 0; border-top: 1px solid var(--line); }
+.lc-line { display: flex; gap: 8px; align-items: center; }
+.lc input, .lc select { font: inherit; font-size: 16px; color: var(--ink); background: var(--well); border: 1px solid var(--glass-line); border-radius: 10px; padding: 8px 10px; min-width: 0; }
+.lc-item { flex: 1; }
+.lc-amt { display: flex; align-items: center; gap: 4px; }
+.lc-amt input { width: 92px; text-align: right; }
+.lc-amt.big input { border-color: var(--rd); box-shadow: 0 0 0 1px var(--rd); }
+.lc-amt small { color: var(--lav); }
+.lc-del { flex: none; width: 30px; height: 30px; border-radius: 50%; border: 0; background: var(--glass); color: var(--lav); }
+.lc-cats { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; padding: 4px; border-radius: 12px; }
+.lc-chip { font: inherit; font-size: 13px; padding: 5px 11px; border-radius: 99px; border: 1px solid var(--glass-line); background: none; color: var(--ink); }
+.lc-chip.on { background: var(--grad); color: #fff; border-color: transparent; }
+.lc .guess { background: rgba(255, 214, 92, .18); box-shadow: inset 0 0 0 1px rgba(255, 214, 92, .55); }
+.lc em { font-style: normal; font-size: 11px; padding: 2px 7px; border-radius: 99px; background: #ffd65c; color: #3a2a00; margin-left: 4px; }
+.lc-total { text-align: right; font-weight: 600; padding: 8px 0 2px; border-top: 1px solid var(--line); }
+.lc-meta { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+.lc-date { display: flex; align-items: center; gap: 6px; padding: 2px 4px; border-radius: 12px; }
+.lc-note { flex: 1; min-width: 120px !important; }
+.lc-hint, .lc-raw { margin: 8px 0 0; font-size: 12px; color: var(--lav); }
+.lc-actions { display: flex; gap: 10px; margin-top: 14px; }
+.lc-actions button { flex: 1; font: inherit; padding: 12px; border-radius: 14px; border: 1px solid var(--glass-line); background: none; color: var(--ink); }
+.lc-actions .primary { flex: 1.6; background: var(--grad); color: #fff; border-color: transparent; font-weight: 600; }
+.lc-actions .primary:disabled { opacity: .5; }
+.lc-ask-line { padding: 8px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.log-undo { position: fixed; z-index: 6; left: 50%; translate: -50% 0; bottom: calc(env(safe-area-inset-bottom) + 76px); display: flex; gap: 12px; align-items: center;
+  padding: 8px 8px 8px 16px; border-radius: 99px; font-size: 14px; animation: rise .25s var(--ease); white-space: nowrap; }
+.log-undo button { font: inherit; font-weight: 600; padding: 6px 14px; border-radius: 99px; border: 0; background: var(--grad); color: #fff; }
+.log-pending { display: block; margin: 10px auto 0; font: inherit; font-size: 13px; padding: 6px 14px; border-radius: 99px; border: 1px solid var(--or); background: none; color: var(--or); }
+.lq-line { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; padding: 4px 0; }
+.set-col { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.set-col input { padding: 8px 10px; border-radius: 10px; border: 1px solid var(--glass-line); background: var(--well); color: var(--ink); font-size: 16px; }
+.learned { display: flex; flex-wrap: wrap; gap: 6px; }
+.learned-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 4px 4px 4px 10px; border-radius: 99px; border: 1px solid var(--glass-line); }
+.learned-chip button { width: 22px; height: 22px; border-radius: 50%; border: 0; background: var(--glass); color: var(--lav); }

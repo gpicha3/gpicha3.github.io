@@ -2,10 +2,16 @@
 import APPS from './config.js';
 import { runCommand } from './commands.js';
 import { M, greeting } from './messages.js';
-import { loadMessages, compose, wrap, render as renderLine, pickTease, teaseUsedToday } from './speech.js';
+import { loadMessages, compose, wrap, render as renderLine, pickTease, teaseUsedToday, foodLevel } from './speech.js';
+import { parseLog, iso } from './log/parse.js';
+import { categorize, learnKey } from './log/categories.js';
+import { openCard, closeCard, isOpen as cardOpen, setBusy, bindCard, isBig, openAsk } from './log/card.js';
+import * as sheet from './log/sheet.js';
 import { mountFace } from './alpha-face.js';
 
 await loadMessages();
+// ตารางคำ → หมวด ของการจดรายจ่าย
+const CATEGORY_TABLE = await fetch('/data/categoryWords.th.json', { cache: 'no-cache' }).then((r) => r.json()).catch(() => ({ categories: {}, guess: [] }));
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -29,7 +35,7 @@ const session = {
 // การตั้งค่าของ Alpha (ที่เดียว): paceMin = แจ้ง "ใช้เร็วกว่าแผน" เมื่อเกินกี่บาท
 // tightPerDay / lowPerDay / overMid / overHigh = เกณฑ์เลือกระดับค่ากิน (ดู speech.js → foodLevel)
 const SETTINGS_KEY = 'alpha.settings';
-const DEFAULT_SETTINGS = { paceMin: 100, morningBrief: true, tightPerDay: 200, lowPerDay: 100, overMid: 300, overHigh: 1000 };
+const DEFAULT_SETTINGS = { paceMin: 100, morningBrief: true, tightPerDay: 200, lowPerDay: 100, overMid: 300, overHigh: 1000, lateNightCutoffHour: 5 };
 const settings = { ...DEFAULT_SETTINGS, ...store.get(SETTINGS_KEY, {}) };
 const saveSettings = () => store.set(SETTINGS_KEY, settings);
 
@@ -495,18 +501,61 @@ function showAnswer(say, sub) {
   answerTimer = setTimeout(() => { el.hidden = true; }, 6500);
 }
 
-let unsureTimer = null;
+// อารมณ์ชั่วคราวระหว่างที่คำตอบขึ้นอยู่ แล้วกลับเป็นอารมณ์ของสรุป
+let flashTimer = null;
+let flashing = false;
+// ms = 0: ค้างไว้จนกว่าจะเรียก flashEmotion ใหม่หรือ endFlash() (เช่นตอนการ์ดเปิดอยู่)
+function flashEmotion(e, ms = 6500) {
+  flashing = true;
+  faces.forEach((f) => f.setEmotion(e));
+  clearTimeout(flashTimer);
+  if (ms) flashTimer = setTimeout(endFlash, ms);
+}
+function endFlash() {
+  clearTimeout(flashTimer);
+  flashing = false;
+  faces.forEach((f) => f.setEmotion(curEmotion || 'greet'));
+}
+// ตอบสั้นๆ: ประโยคจาก messages/th.json + อารมณ์ (+ อ่านออกเสียงถ้าสั่งด้วยเสียง)
+const spaced = (vars = {}) => Object.fromEntries(Object.entries(vars).map(([k, v]) => [k, k === 'item' && /^[A-Za-z0-9]/.test(String(v)) ? ` ${v}` : v]));
+const line = (key, vars) => (renderLine(key, spaced(vars), { daily: false }) || '').replace(/\s+/g, ' ').trim();
+function reply(parts, emotion, voice = false) {
+  const text = (Array.isArray(parts) ? parts : [parts]).map(([key, vars]) => line(key, vars)).filter(Boolean).join(' ');
+  if (!text) return '';
+  showAnswer(text);
+  flashEmotion(emotion);
+  if (voice) speak(text);
+  return text;
+}
+
 function handleCommand(text, { voice = false } = {}) {
-  const res = runCommand(text, { apps: APPS, results, alerts: allAlerts() });
+  const raw = String(text || '').trim();
+  if (!raw) return;
+  const parsed = parseLog(raw, { cutoff: settings.lateNightCutoffHour, spoken: voice });
+  const clear = () => { $('#cmdInput').value = ''; $('#cmdInput').blur(); };
+  // การ์ดเปิดอยู่ + "ยกเลิก/ไม่เอา/ไม่" = ปิดการ์ด ไม่จด
+  if (cardOpen() && (parsed.intent === 'cancel' || (parsed.intent === 'undo' && parsed.cancel))) { clear(); cancelLog(voice); return; }
+  if (parsed.intent === 'undo') { clear(); askUndo(voice); return; }
+  if (parsed.intent === 'card') { clear(); reply([['log-card-skip']], 'interrupt', voice); return; }
+  if (parsed.intent === 'fuel') {
+    // ค่าน้ำมันไม่ลง Daily Log → เปิดฟอร์มเติมน้ำมันในแอปรถ พร้อมกรอกราคาที่แกะได้
+    clear();
+    showAnswer(M.cmd.openFuelForm);
+    if (voice && voiceMode !== 'siri') speak(M.cmd.openFuelForm);
+    setTimeout(() => { location.href = `/fuel-logger/#add${parsed.fuelAmount ? `?price=${parsed.fuelAmount}` : ''}`; }, voice ? 900 : 450);
+    return;
+  }
+  if (parsed.intent === 'entries') { clear(); openLog(parsed, raw, voice); return; }
+  if (parsed.intent === 'none' && parsed.logish) { clear(); reply([['log-parse-fail']], 'unsure', voice); return; }
+
+  // คำถาม / เปิดแอป / คำสั่งเดิม
+  const res = runCommand(raw, { apps: APPS, results, alerts: allAlerts() });
   if (!res) return;
-  $('#cmdInput').value = '';
-  $('#cmdInput').blur();
+  clear();
   // แกะคำสั่งไม่ออก → ประโยค "ไม่แน่ใจ" + ตัวละครทำหน้าไม่แน่ใจระหว่างที่คำตอบขึ้นอยู่
   if (res.unknown) {
     res.say = renderLine('uncertain-command', {}, { daily: false }) || res.say;
-    faces.forEach((f) => f.setEmotion('unsure'));
-    clearTimeout(unsureTimer);
-    unsureTimer = setTimeout(() => faces.forEach((f) => f.setEmotion(curEmotion || 'greet')), 6500);
+    flashEmotion('unsure');
   }
   showAnswer(res.say, res.sub);
   // โหมด Siri สลับแอปทุกครั้งที่พูด จึงพูดเฉพาะคำตอบที่ไม่ต้องเปิดหน้าอื่นต่อ
@@ -514,6 +563,193 @@ function handleCommand(text, { voice = false } = {}) {
   if (res.report) setTimeout(() => openReport(), 250);
   else if (res.go) setTimeout(() => { location.href = res.go; }, voice ? 900 : 450);
 }
+
+/* ---------- จดรายรับรายจ่าย (log/*) ---------- */
+const LEARNED_KEY = 'alpha.learnedCategory';
+const learned = () => store.get(LEARNED_KEY, {});
+const fmtMoney = (n) => Math.round(Number(n) || 0);
+// รอบเงินเดือน (กติกาเดียวกับ calc.js: วันที่ 25 ขึ้นไป = รอบเดือนนี้) ใช้บอกว่าจดลงรอบที่แล้วหรือเปล่า
+const TH_M = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+const cycleStart = (d) => (d.getDate() >= 25 ? new Date(d.getFullYear(), d.getMonth(), 1) : new Date(d.getFullYear(), d.getMonth() - 1, 1));
+const cycleLabel = (d) => { const m = cycleStart(d).getMonth(); return `รอบ 26 ${TH_M[m]}–24 ${TH_M[(m + 1) % 12]}`; };
+const isPrevCycle = (d) => cycleStart(d) < cycleStart(new Date());
+const LOG_EMOTION = { A: 'ok', B: 'advise', F: 'worry', C: 'no', D: 'no', E: 'sulk' };
+
+function confirmSay(st) {
+  const rows = st.rows;
+  const total = rows.reduce((a, r) => a + (Number(r.amount) || 0), 0);
+  const missing = st.type !== 'รายรับ' && rows.find((r) => !r.category);
+  if (missing) return [[['log-confirm-ask-category', { item: missing.item || 'รายการนี้' }]], 'advise'];
+  if (st.lateNight && st.dateGuess) return [[['log-confirm-late-night']], 'unsure'];
+  if (rows.some((r) => r.guess)) return [[['log-confirm-guess']], 'unsure'];
+  const big = rows.find((r) => isBig(r));
+  if (big) return [[['log-confirm-big', { amount: big.amount }]], 'interrupt'];
+  if (st.type === 'รายรับ') return [[['log-confirm-income', { amount: rows[0].amount, item: rows[0].item }]], 'ok'];
+  if (rows.length > 1) return [[['log-confirm-multi', { count: rows.length, total }]], 'work'];
+  return [[['log-confirm-one', { item: rows[0].item, amount: rows[0].amount, category: rows[0].category }]], 'work'];
+}
+
+function openLog(parsed, raw, voice) {
+  if (parsed.dateError) { reply([[parsed.dateError === 'future' ? 'log-date-future' : 'log-date-old']], 'unsure', voice); return; }
+  const type = parsed.entries[0].type;
+  const rows = parsed.entries.map((e) => {
+    if (type === 'รายรับ') return { item: e.item, amount: e.amount, category: null, guess: false };
+    const c = categorize(e.item, { table: CATEGORY_TABLE, learned: learned() });
+    return { item: e.item, amount: e.amount, category: c.category, guess: c.guess };
+  });
+  const st = { rows, type, date: parsed.date, dateGuess: parsed.dateGuess, lateNight: parsed.lateNight };
+  const [parts, emotion] = confirmSay(st);
+  const say = parts.map(([k, v]) => line(k, v)).filter(Boolean).join(' ');
+  openCard({
+    ...st, note: parsed.note, raw: voice ? raw : null, say,
+    cycleText: isPrevCycle(parsed.date) ? cycleLabel(parsed.date) : '',
+    onChange: (cs) => { cs.cycleText = isPrevCycle(cs.date) ? cycleLabel(cs.date) : ''; },
+    onSave: saveLog, onCancel: () => cancelLog(false),
+  });
+  flashEmotion(emotion, 0);
+  if (voice && say) speak(say);
+}
+
+function cancelLog(voice) {
+  closeCard();
+  reply([['log-cancelled']], 'greet', voice);
+}
+
+async function saveLog(st) {
+  // จำหมวดที่บอสเลือกเอง (คำแรกของรายการ → หมวด)
+  const mem = learned();
+  for (const r of st.rows) if (r.picked && st.type !== 'รายรับ' && learnKey(r.item)) mem[learnKey(r.item)] = r.category;
+  store.set(LEARNED_KEY, mem);
+
+  const entries = st.rows.map((r) => ({
+    date: iso(st.date), type: st.type, category: st.type === 'รายรับ' ? '' : r.category,
+    item: String(r.item).trim(), amount: Number(r.amount), note: String(st.note || '').trim(),
+  }));
+  setBusy(true);
+  flashEmotion('work', 0);
+  const res = await sheet.addBatch(entries);
+  renderPending();
+  if (res.status === 'auth' || res.status === 'config') { setBusy(false); reply([['log-auth-failed']], 'sorry'); return; }
+  if (res.status === 'failed') { setBusy(false); reply([['log-failed']], 'sorry'); return; }
+  closeCard();
+  if (res.status === 'queued') { reply([['log-queued', { pending: sheet.pendingCount() }]], 'sorry'); return; }
+
+  // จดสำเร็จ: หมวดกิน → พูดยอดค่ากินที่เหลือ (ดึงสรุปของ Finance ใหม่ ใช้สูตรเดียวกับหน้าสรุป)
+  const total = entries.reduce((a, e) => a + e.amount, 0);
+  const many = entries.length > 1;
+  const hasFood = entries.some((e) => e.type === 'รายจ่าย' && e.category === 'กิน');
+  let parts = [];
+  let emotion = 'ok';
+  if (isPrevCycle(st.date)) {
+    parts = [['log-saved-prev-cycle', { cycleText: res.data?.cycleText || cycleLabel(st.date).replace(/^รอบ /, '') }]];
+    emotion = 'advise';
+  } else if (st.type === 'รายรับ') {
+    parts = [['log-saved-income', { amount: total }]];
+  } else {
+    const finApp = APPS.find((a) => a.id === 'finance-app');
+    if (hasFood && finApp) await loadOne(finApp);
+    const f = hasFood ? factsOf('finance-app') : null;
+    const level = f && results['finance-app']?.status === 'ok' ? foodLevel(f, settings) : null;
+    const nums = level && { left: fmtMoney(f.left), perDay: fmtMoney(f.perDay), daysLeft: f.daysToPayday, over: fmtMoney(f.over) };
+    if (many) parts.push(['log-saved-multi', { count: entries.length, total }]);
+    else if (nums) parts.push([f.over > 0 ? 'log-saved-food-over' : 'log-saved-food', nums]);
+    else parts.push(['log-saved-other', { item: entries[0].item, amount: entries[0].amount, category: entries[0].category }]);
+    if (nums) { parts.push([`log-saved-food-${level}`, nums]); emotion = LOG_EMOTION[level]; }
+  }
+  reply(parts, emotion);
+  showUndoBar(res.batch);
+}
+
+// แถบ "เลิกทำ" 10 วินาทีหลังจด (กดแล้วลบทันที)
+let undoTimer = null;
+function showUndoBar(batch) {
+  const n = batch.entries.length;
+  $('#logUndoText').textContent = n > 1 ? `จด ${n} รายการแล้ว` : `จด${batch.entries[0].item} ${batch.entries[0].amount.toLocaleString('th-TH')} ฿ แล้ว`;
+  $('#logUndo').hidden = false;
+  $('#logUndoBtn').onclick = () => { $('#logUndo').hidden = true; doUndo(batch.batchId); };
+  clearTimeout(undoTimer);
+  undoTimer = setTimeout(() => { $('#logUndo').hidden = true; }, 10000);
+}
+
+function askUndo(voice) {
+  const b = sheet.history()[0];
+  if (!b) { reply([['log-undo-none']], 'unsure', voice); return; }
+  const e = b.entries[0];
+  const [y, m, d] = e.date.split('-').map(Number);
+  const when = new Date(y, m - 1, d);
+  // log-undo-confirm มี 2 แบบ: ระบุรายการ (ชุดเดียว) / ระบุจำนวน (หลายรายการ) · ส่งเฉพาะตัวแปรที่ตรงกับชุด แบบที่ขาดตัวแปรจะถูกข้าม
+  const vars = b.entries.length > 1 ? { count: b.entries.length } : { item: e.item, amount: e.amount, dateText: dateLabel(when) };
+  let say = '';
+  for (let i = 0; i < 6 && !say; i += 1) say = line('log-undo-confirm', vars);
+  openAsk({
+    say, lines: b.entries.map((x) => `${x.item} ${x.amount.toLocaleString('th-TH')} ฿`),
+    onYes: () => doUndo(b.batchId), onNo: () => { closeCard(); endFlash(); },
+  });
+  flashEmotion('advise', 0);
+  if (voice && say) speak(say);
+}
+const dateLabel = (d) => {
+  const back = Math.round((new Date().setHours(0, 0, 0, 0) - new Date(d).setHours(0, 0, 0, 0)) / 864e5);
+  return back === 0 ? 'วันนี้' : back === 1 ? 'เมื่อวาน' : `วันที่ ${d.getDate()} ${TH_M[d.getMonth()]}`;
+};
+
+async function doUndo(batchId) {
+  const b = sheet.history().find((x) => x.batchId === batchId);
+  const r = await sheet.undoBatch(batchId);
+  closeCard();
+  if (r.ok) {
+    // ลบภายใน 2 นาทีหลังจด = แซว · นานกว่านั้น = โอเค
+    const quick = b && Date.now() - b.at < 120000;
+    reply([[quick ? 'log-undo-done' : 'log-undo-done-late']], quick ? 'tease' : 'ok');
+    const finApp = APPS.find((a) => a.id === 'finance-app');
+    if (finApp) loadOne(finApp);
+    return;
+  }
+  if (r.error === 'not-last' || r.error === 'changed') reply([['log-undo-blocked']], 'sorry');
+  else if (r.error === 'not-found' || r.error === 'none') reply([['log-undo-none']], 'unsure');
+  else if (r.error === 'auth' || r.error === 'config') reply([['log-auth-failed']], 'sorry');
+  else reply([['log-failed']], 'sorry');
+}
+
+// รายการรอส่ง (เน็ตหลุดตอนจด)
+function renderPending() {
+  const n = sheet.pendingCount();
+  const el = $('#logPending');
+  el.hidden = !n;
+  el.textContent = `รอส่ง ${n} รายการ ›`;
+  if (!$('#logQueue').hidden) renderQueue();
+}
+function renderQueue() {
+  const q = sheet.queue();
+  $('#logQueueList').innerHTML = q.length ? q.map((b) => `<div class="glass conn" data-batch="${esc(b.batchId)}">
+      ${b.entries.map((e) => `<div class="lq-line"><span>${esc(e.item)} · ${esc(e.category || e.type)}</span><b>${esc(e.amount.toLocaleString('th-TH'))} ฿</b></div>`).join('')}
+      <div class="conn-actions"><button type="button" class="danger" data-q="drop">ลบ</button><button type="button" class="primary" data-q="send">ส่งตอนนี้</button></div>
+    </div>`).join('') : '<p class="set-hint">ไม่มีรายการรอส่งแล้วค่ะ</p>';
+}
+$('#logPending').addEventListener('click', () => { renderQueue(); $('#logQueue').hidden = false; });
+$('#logQueueBack').addEventListener('click', () => { $('#logQueue').hidden = true; });
+$('#logQueueList').addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-q]');
+  if (!b) return;
+  const id = b.closest('[data-batch]').dataset.batch;
+  if (b.dataset.q === 'drop') { if (confirm('ลบรายการนี้ออกจากคิว? (ยังไม่ได้จดลงชีต)')) sheet.dropQueued(id); }
+  else {
+    b.disabled = true;
+    const r = await sheet.sendQueued(id);
+    if (r.ok) reply([['log-queue-sent', { count: 1 }]], 'ok');
+    else reply([[r.error === 'auth' || r.error === 'config' ? 'log-auth-failed' : 'log-failed']], 'sorry');
+  }
+  renderPending();
+});
+async function flushLogQueue() {
+  if (!sheet.pendingCount()) return;
+  const r = await sheet.flushQueue();
+  renderPending();
+  if (r.sent) reply([['log-queue-sent', { count: r.sent }]], 'ok');
+  else if (sheet.staleQueued().length) reply([['log-queue-failed', { pending: sheet.pendingCount() }]], 'worry');
+}
+window.addEventListener('online', flushLogQueue);
+bindCard();
 
 $('#cmd').addEventListener('submit', (e) => {
   e.preventDefault();
@@ -641,6 +877,14 @@ function renderSettings() {
   $('#overHighLabel').textContent = S.overHighLabel;
   $('#speechHint').textContent = S.speechHint;
   for (const k of ['tightPerDay', 'overMid', 'overHigh']) $(`#${k}`).value = settings[k];
+  const w = store.get('alpha.logWrite', {}) || {};
+  $('#logUrl').value = w.url || '';
+  $('#logToken').value = w.token || '';
+  $('#lateCutoff').value = settings.lateNightCutoffHour;
+  const mem = store.get('alpha.learnedCategory', {});
+  $('#learnedList').innerHTML = Object.keys(mem).length
+    ? Object.entries(mem).map(([k, v]) => `<span class="learned-chip">${esc(k)} → ${esc(v)}<button type="button" data-unlearn="${esc(k)}" aria-label="ลืมคำนี้">✕</button></span>`).join('')
+    : '<span class="set-hint">ยังไม่มีค่ะ (เลือกหมวดเองบนการ์ดแล้วหนูจะจำ)</span>';
   $('#briefLabel').textContent = S.briefLabel;
   $('#briefHint').textContent = S.briefHint;
   $('#briefSwitch').setAttribute('aria-checked', String(!!settings.morningBrief));
@@ -721,6 +965,23 @@ $('#paceMin').addEventListener('change', (e) => {
   e.target.value = v;
   saveSettings();
   renderHome();
+});
+for (const id of ['logUrl', 'logToken']) {
+  $(`#${id}`).addEventListener('change', () => sheet.saveWriteConfig({ url: $('#logUrl').value, token: $('#logToken').value }));
+}
+$('#lateCutoff').addEventListener('change', (e) => {
+  const v = Math.min(12, Math.max(0, Math.round(Number(e.target.value) || 0)));
+  settings.lateNightCutoffHour = v;
+  e.target.value = v;
+  saveSettings();
+});
+$('#learnedList').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-unlearn]');
+  if (!b) return;
+  const mem = store.get('alpha.learnedCategory', {});
+  delete mem[b.dataset.unlearn];
+  store.set('alpha.learnedCategory', mem);
+  renderSettings();
 });
 for (const k of ['tightPerDay', 'overMid', 'overHigh']) {
   $(`#${k}`).addEventListener('change', (e) => {
@@ -807,7 +1068,8 @@ let curEmotion = null;
 function setEmotion(e) {
   if (e === curEmotion) return;
   curEmotion = e;
-  faces.forEach((f) => f.setEmotion(e));
+  // ระหว่างที่ตัวละครทำหน้าตอบคำสั่งอยู่ (flashEmotion) จำอารมณ์ไว้ก่อน แล้วค่อยเปลี่ยนตอนหมดเวลา
+  if (!flashing) faces.forEach((f) => f.setEmotion(e));
 }
 
 /* ---------- เริ่ม ---------- */
@@ -822,3 +1084,5 @@ if (location.hash === '#report') openReport({ push: false });
 else if (location.hash === '#settings') openSettings();
 else if (!session.get(SYNC_SEEN)) showSync();
 refresh();
+renderPending();
+flushLogQueue();

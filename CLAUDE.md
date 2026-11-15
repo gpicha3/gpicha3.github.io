@@ -17,10 +17,14 @@
 | `messages/th.json` | ประโยคสรุปแบบพูดทั้งหมด (ตาราง key อยู่ที่ `messages/README.md`) |
 | `speech.js` | แต่งประโยคสรุปจาก `facts` ของแต่ละแอป: เลือก key, สุ่มแบบ seed รายวัน, กันซ้ำ, หัว/ท้าย |
 | `alpha-face.js` | ตัวละครมีอารมณ์ (SVG วาดทับรูป) · ตำแหน่งตา/ปากอยู่ใน `FACE` ที่เดียว |
+| `log/parse.js` | แกะข้อความจดรายรับรายจ่าย (+ เสียง → ตัวเลข) ไม่แตะ DOM · เทสต์: `node --test tests/parse.test.mjs` |
+| `log/categories.js` + `data/categoryWords.th.json` | คำ → หมวด (คำยาวก่อน · คำที่บอสสอนใน `alpha.learnedCategory` มาก่อน) |
+| `log/card.js` | การ์ดยืนยันก่อนจด / การ์ดถามก่อนลบ |
+| `log/sheet.js` | ส่งไป Apps Script (doPost) · คิวตอนเน็ตหลุด `alpha.logQueue` · ประวัติ 5 ชุด `alpha.logHistory` · รหัส `alpha.logWrite` |
 | `styles.css` | ธีมออโรร่า ม่วง-ชมพู รองรับ safe-area |
 | `templates/summary.template.js` | template สำหรับ summary.js ของแอปใหม่ |
 
-localStorage ที่ Alpha ใช้: `hub.cache.v1` (ผลสรุปล่าสุด) · `hub.voice` (โหมดเสียง) · `hub.speech.v1` (ประโยคที่ใช้ล่าสุดของแต่ละ key) · `alpha.settings` (ตั้งค่า) ·
+localStorage ที่ Alpha ใช้: `hub.cache.v1` (ผลสรุปล่าสุด) · `hub.tease` / `hub.listens` (แซว) · `alpha.logWrite` / `alpha.logQueue` / `alpha.logHistory` / `alpha.learnedCategory` (จดรายรับรายจ่าย) · `hub.voice` (โหมดเสียง) · `hub.speech.v1` (ประโยคที่ใช้ล่าสุดของแต่ละ key) · `alpha.settings` (ตั้งค่า) ·
 `alpha.theme` (ธีมสี — fuel-logger/finance-app อ่าน key นี้ใน theme.js ของตัวเองด้วย ดูตาราง apps ใน `alpha-theme.js`) · sessionStorage: `hub.syncShown`
 
 ไฟล์อื่น: `alpha-theme.js` (ธีม 6 ชุด โหลดใน head) · `assets/alpha-character.png` (ตัวละคร ห้ามแก้หน้า/ผม) ·
