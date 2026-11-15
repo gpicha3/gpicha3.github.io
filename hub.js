@@ -439,15 +439,30 @@ $('#speakBtn').addEventListener('click', () => {
 });
 
 /* ---------- ช่องสั่งงาน ---------- */
-// iPhone: ตอนคีย์บอร์ดขึ้น วางช่องสั่งงานไว้เหนือคีย์บอร์ดพอดี ตามขอบล่างของ visual viewport
+// ความสูงจอจริง: PWA บน iPhone ให้ innerHeight / position:fixed สั้นกว่าจอ (ขาดเท่าแถบสถานะ) ช่องสั่งงานเลยลอย
+// → ในโหมดแอป (standalone) ใช้ความสูงหน้าจอแทน แล้ววางช่องสั่งงาน/หน้าซ้อนจากค่านี้ (--app-h)
+// ตอนพิมพ์: ช่องสั่งงานชิดเหนือคีย์บอร์ดตามขอบล่างของ visual viewport (--vv-bottom)
 const vv = window.visualViewport;
-function placeCmd() {
-  // iPhone (PWA) บางทีค่า innerHeight กับ visualViewport ไม่ตรงกันแม้ไม่มีคีย์บอร์ด → นับเฉพาะตอนช่องสั่งงานถูกโฟกัส
-  const typing = document.activeElement === $('#cmdInput');
-  const kb = vv && typing ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0;
-  document.documentElement.style.setProperty('--kb', `${Math.round(kb)}px`);
-  document.body.classList.toggle('kb-open', kb > 80);
+const standalone = navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+function appHeight() {
+  if (!standalone) return window.innerHeight;
+  const land = matchMedia('(orientation: landscape)').matches;
+  const sh = land ? Math.min(screen.width, screen.height) : Math.max(screen.width, screen.height);
+  return Math.max(window.innerHeight, sh);
 }
+let appH = appHeight();
+function placeCmd() {
+  const typing = document.activeElement === $('#cmdInput');
+  if (!typing) appH = appHeight();
+  const root = document.documentElement.style;
+  root.setProperty('--app-h', `${Math.round(appH)}px`);
+  const vvBottom = vv ? vv.offsetTop + vv.height : appH;
+  root.setProperty('--vv-bottom', `${Math.round(vvBottom)}px`);
+  document.body.classList.toggle('kb-open', typing && appH - vvBottom > 120);
+}
+placeCmd();
+window.addEventListener('resize', placeCmd);
+window.addEventListener('orientationchange', () => setTimeout(placeCmd, 300));
 if (vv) { vv.addEventListener('resize', placeCmd); vv.addEventListener('scroll', placeCmd); }
 // คีย์บอร์ดดันหน้าขึ้นแล้วไม่เลื่อนกลับ → ดึงกลับที่เดิม
 $('#cmdInput').addEventListener('focus', () => setTimeout(() => { window.scrollTo(0, 0); placeCmd(); }, 320));
