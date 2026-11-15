@@ -18,16 +18,15 @@ export const FACE = {
   acc: { x: 730, y: 150 },       // จุดวางของประกอบ (หลอดไฟ หัวใจ ? !) มุมขวาบนของหัว
 };
 
-// 11 อารมณ์ (eyes/mouth = null คือใช้ของเดิมในรูป)
+// 9 อารมณ์ (eyes/mouth = null คือใช้ของเดิมในรูป)
+// เอา "ไม่แน่ใจ" กับ "แซว" ออกไว้ก่อน (ยังไม่มีที่ใช้) ต้นแบบอยู่ใน index.html ที่บอสส่งมา
 export const EMOTIONS = {
   greet: { label: 'ทักทาย', eyes: null, mouth: 'big', acc: ['sparkle'], motion: 'hop' },
   work: { label: 'ทำงาน', eyes: null, mouth: 'focus', acc: ['glasses'], motion: 'nod' },
   advise: { label: 'แนะนำ', eyes: null, mouth: null, acc: ['bulb'], motion: 'tilt' },
   ok: { label: 'โอเค', eyes: 'happy', mouth: 'big', acc: ['heart'], motion: 'hop2' },
   no: { label: 'ไม่เห็นด้วย', eyes: 'half', mouth: 'flat', acc: ['x'], motion: 'shake' },
-  unsure: { label: 'ไม่แน่ใจ', eyes: null, mouth: 'wavy', acc: ['q'], motion: 'tiltloop' },
   sorry: { label: 'ขอโทษ', eyes: 'closed', mouth: 'o', acc: ['sweat'], motion: 'bow' },
-  tease: { label: 'แซว', eyes: 'wink', mouth: 'smirk', acc: ['hehe'], motion: 'sway' },
   worry: { label: 'เป็นห่วง', eyes: null, mouth: 'frown', acc: ['sweat'], motion: 'slowsway' },
   sulk: { label: 'งอน', eyes: 'half', mouth: 'pout', acc: ['anger', 'blush'], motion: 'turn' },
   interrupt: { label: 'ขอขัด', eyes: 'wide', mouth: 'o', acc: ['excl'], motion: 'lean' },
@@ -47,9 +46,7 @@ const MOUTH = {
   focus: '<path d="M-16 -1 Q0 5 16 -1"/>',
   flat: '<path d="M-27 0 L27 0"/>',
   frown: '<path d="M-27 8 Q0 -10 27 8"/>',
-  wavy: '<path d="M-37 1 q9 -8 18 0 t18 0 t18 0 t18 0"/>',
   pout: '<path d="M-9 -8 q12 4 0 9 q12 4 0 9"/>',
-  smirk: '<path d="M-33 -3 Q7 13 38 -11"/>',
   o: '<ellipse cx="0" cy="0" rx="8" ry="7"/>',
   talk: '<ellipse cx="0" cy="0" rx="15" ry="12" fill="#8a3a36"/>',
   talk2: '<ellipse cx="0" cy="-1" rx="18" ry="7" fill="#8a3a36"/>',
@@ -67,20 +64,16 @@ const ACC = {
     <path d="M680 100 l-14 -12 M730 84 v-18 M780 100 l14 -12" stroke="#f4c542" stroke-width="6" stroke-linecap="round"/></g>`,
   heart: '<g class="fx-float"><path d="M730 190 C690 160 680 120 705 105 C722 95 730 110 730 118 C730 110 738 95 755 105 C780 120 770 160 730 190Z" fill="#ff7d8f" stroke="#111" stroke-width="5"/></g>',
   x: '<g class="fx-pop"><circle cx="730" cy="150" r="44" fill="#ff6b6b" stroke="#111" stroke-width="5"/><path d="M712 132 l36 36 M748 132 l-36 36" stroke="#fff" stroke-width="11" stroke-linecap="round"/></g>',
-  q: '<g class="fx-float"><text x="700" y="190" font-size="130" font-weight="700" fill="#6c8cff" stroke="#111" stroke-width="4" font-family="system-ui">?</text></g>',
   excl: '<g class="fx-float"><text x="705" y="195" font-size="140" font-weight="800" fill="#ff8a3d" stroke="#111" stroke-width="4" font-family="system-ui">!</text></g>',
   sweat: '<g class="fx-drip"><path d="M640 230 C628 252 626 266 640 270 C654 266 652 252 640 230Z" fill="#9fd6ff" stroke="#111" stroke-width="4"/></g>',
   anger: '<g class="fx-pop" stroke="#e23b3b" stroke-width="9" fill="none" stroke-linecap="round"><path d="M690 150 q14 -2 14 -16"/><path d="M730 134 q2 14 16 14"/><path d="M746 174 q-14 2 -14 16"/><path d="M704 190 q-2 -14 -16 -14"/></g>',
   blush: () => `<g fill="#ff8f8f" opacity=".45"><ellipse cx="${FACE.cheekL.x}" cy="${FACE.cheekL.y}" rx="44" ry="20"/><ellipse cx="${FACE.cheekR.x}" cy="${FACE.cheekR.y}" rx="44" ry="20"/></g>`,
-  hehe: '<g class="fx-float"><text x="610" y="190" font-size="64" font-weight="700" fill="#b06bff" stroke="#111" stroke-width="2" font-family="system-ui, sans-serif">หึๆ</text></g>',
 };
-const MOVED = new Set(['bulb', 'heart', 'x', 'q', 'excl', 'sweat', 'anger', 'hehe']); // เลื่อนตาม FACE.acc
+const MOVED = new Set(['bulb', 'heart', 'x', 'excl', 'sweat', 'anger']); // เลื่อนตาม FACE.acc
 
 function eyes(kind) {
   const p = FACE.eyePatch;
   const one = (side, c) => `<g transform="translate(${c.x} ${c.y})"><ellipse rx="${p.rx}" ry="${p.ry}" fill="${FACE.skin}" stroke="none"/>${EYE[kind](side)}</g>`;
-  // ขยิบตา: ตาขวาเป็นตายิ้ม ตาซ้ายใช้ของเดิมในรูป
-  if (kind === 'wink') return `<g transform="translate(${FACE.eyeR.x} ${FACE.eyeR.y})"><ellipse rx="${p.rx}" ry="${p.ry}" fill="${FACE.skin}" stroke="none"/>${EYE.happy()}</g>`;
   return one('L', FACE.eyeL) + one('R', FACE.eyeR);
 }
 function mouth(kind) {

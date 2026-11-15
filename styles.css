@@ -382,9 +382,7 @@ button.rp-line { font: inherit; color: inherit; }
 .m-nod { animation: fx-nod 1.4s ease-in-out infinite; }
 .m-tilt { animation: fx-tilt .6s ease-out forwards; }
 .m-shake { animation: fx-shake .7s ease-in-out 1; }
-.m-tiltloop { animation: fx-tiltloop 2.4s ease-in-out infinite; }
 .m-bow { animation: fx-bow .8s ease-out forwards; }
-.m-sway { animation: fx-sway 1.6s ease-in-out infinite; }
 .m-slowsway { animation: fx-sway 3.2s ease-in-out infinite; }
 .m-turn { animation: fx-turn .5s ease-out forwards; }
 .m-lean { animation: fx-lean .6s cubic-bezier(.3, 1.6, .5, 1) forwards; }
@@ -392,7 +390,6 @@ button.rp-line { font: inherit; color: inherit; }
 @keyframes fx-nod { 0%, 100% { transform: none; } 50% { transform: translateY(.6%) rotate(.6deg); } }
 @keyframes fx-tilt { to { transform: rotate(-4deg); } }
 @keyframes fx-shake { 0%, 100% { transform: none; } 20% { transform: translateX(-2.2%) rotate(-1.5deg); } 40% { transform: translateX(2.2%) rotate(1.5deg); } 60% { transform: translateX(-1.5%); } 80% { transform: translateX(1.2%); } }
-@keyframes fx-tiltloop { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
 @keyframes fx-bow { to { transform: translateY(2.9%) scale(.975); } }
 @keyframes fx-sway { 0%, 100% { transform: rotate(-1.6deg); } 50% { transform: rotate(1.6deg); } }
 @keyframes fx-turn { to { transform: rotate(3deg) translateX(2.5%); } }
