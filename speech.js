@@ -148,7 +148,9 @@ export function compose({ fin, fuel, settings, links = {} }) {
 
   // วันเงินเดือนเข้า: อารมณ์ตามรอบที่เพิ่งจบ (เกินงบ = ไม่เห็นด้วย)
   const lv = fin?.daysToPayday === 0 && fin.prevLeft < 0 ? 'C' : level;
-  const emotion = late ? 'worry' : nothing ? 'greet' : (lv && EMOTION[lv]) || 'greet';
+  // มีเรื่องครบกำหนดวันนี้ (ค่างวด / เช็กระยะ / นัดศูนย์ / ต่อภาษี ประกัน พ.ร.บ.) → ขอขัด
+  const dueToday = topics.some((t) => t.key === 'install-today' || /^car-.*-today$/.test(t.key));
+  const emotion = late ? 'worry' : dueToday ? 'interrupt' : nothing ? 'greet' : (lv && EMOTION[lv]) || 'greet';
   return { topics, level, emotion, nothing };
 }
 

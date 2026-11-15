@@ -109,7 +109,7 @@ function renderHome() {
   }
 
   $('#apps').innerHTML = APPS.map(appCard).join('');
-  if (hasData && !syncing) setEmotion(brief().emotion);
+  if (!syncing && (hasData || anyError)) setEmotion(brief().emotion);
 }
 
 const PLAY = '<svg class="play" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h4l5 4V6L8 10z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/></svg>';
@@ -255,7 +255,9 @@ function brief() {
     items.push({ text: a.text, link: a.items?.length ? null : a.link || a.app.path, group: a.items?.length ? a : null });
   }
   if (items.length && !b.nothing) wrap(items.map((i) => i.text)).forEach((t, i) => { items[i].text = t; });
-  return { items, emotion: b.emotion };
+  // โหลดข้อมูลจากแอปไหนไม่สำเร็จ → ขอโทษ (ทับทุกอย่าง)
+  const anyError = Object.values(results).some((r) => r.status === 'error');
+  return { items, emotion: anyError ? 'sorry' : b.emotion };
 }
 
 let lastLines = [];
