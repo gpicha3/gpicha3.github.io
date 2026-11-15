@@ -363,8 +363,8 @@ button.rp-line { font: inherit; color: inherit; }
 .switch[aria-checked="true"]::after { transform: translateX(20px); }
 
 /* คีย์บอร์ดขึ้น: ช่องสั่งงานชิดเหนือคีย์บอร์ด (ไม่ต้องเผื่อ safe-area ล่าง) */
-.kb-open .cmd { bottom: auto; top: calc(var(--vv-bottom) - 8px); translate: 0 -100%; }
-.kb-open .answer { bottom: auto; top: calc(var(--vv-bottom) - 68px); translate: 0 -100%; }
+.kb-open .cmd { bottom: auto; top: calc(var(--vv-bottom) - 2px); translate: 0 -100%; }
+.kb-open .answer { bottom: auto; top: calc(var(--vv-bottom) - 62px); translate: 0 -100%; }
 /* ชื่อการ์ดยาว (เช่นชื่อรถ) ตัดด้วย … */
 .app-name .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
