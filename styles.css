@@ -42,10 +42,10 @@
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-html, body { margin: 0; }
+html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; }
 html { background: var(--bg); }
 body {
-  min-height: 100dvh; background: var(--bg); color: var(--ink);
+  background: var(--bg); color: var(--ink);
   font: 15px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Sukhumvit Set", "Thonburi", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none;
 }
@@ -116,7 +116,7 @@ a { color: inherit; text-decoration: none; }
   -webkit-mask: url(/assets/alpha-shirt-mask.png) center / 100% 100% no-repeat; mask: url(/assets/alpha-shirt-mask.png) center / 100% 100% no-repeat;
 }
 .alpha .ring { inset: 6% -2% auto; height: 78%; z-index: 0; }
-.alpha .ring.r2 { z-index: 2; border-color: color-mix(in srgb, var(--ring-c) 60%, transparent); }
+.alpha .ring.r2 { z-index: 0; border-color: color-mix(in srgb, var(--ring-c) 60%, transparent); }
 .alpha .char { z-index: 1; }
 .alpha .spark { z-index: 3; }
 .alpha .r1 { animation: tilt1 14s linear infinite; }
@@ -141,32 +141,37 @@ a { color: inherit; text-decoration: none; }
 
 /* ---------- หน้าแรก ---------- */
 .home {
-  max-width: 520px; margin: 0 auto;
-  padding: calc(env(safe-area-inset-top) + 12px) max(18px, env(safe-area-inset-right)) calc(env(safe-area-inset-bottom) + 110px) max(18px, env(safe-area-inset-left));
+  position: fixed; inset: 0; overflow-y: auto; overscroll-behavior: none; -webkit-overflow-scrolling: touch;
+  padding: calc(env(safe-area-inset-top) + 12px) max(18px, env(safe-area-inset-right), calc((100% - 520px) / 2)) calc(env(safe-area-inset-bottom) + 110px) max(18px, env(safe-area-inset-left), calc((100% - 520px) / 2));
 }
-.hud-top { display: flex; justify-content: space-between; font-size: 10px; letter-spacing: .14em; color: var(--dim); text-transform: uppercase; }
-.live b { font-weight: 500; color: var(--live-ink); }
+.hud-top { display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; letter-spacing: .12em; color: var(--lav); text-transform: uppercase; }
+.live b { font-weight: 650; color: var(--live-ink); text-shadow: none; }
 .live i { display: inline-block; width: 6px; height: 6px; margin-right: 7px; border-radius: 50%; background: var(--live); box-shadow: 0 0 8px var(--live); vertical-align: 1px; }
 .live.warn b { color: var(--or); }
 .live.warn i { background: var(--or); box-shadow: 0 0 8px var(--or); animation: twinkle 1s infinite; }
 .live.bad b { color: var(--rd); }
 .live.bad i { background: var(--rd); box-shadow: 0 0 8px var(--rd); }
 
-.orb-btn { display: flex; flex-direction: column; align-items: center; margin: 14px auto 0; }
+.orb-btn { display: flex; flex-direction: column; align-items: center; width: max-content; margin: 14px auto 0; -webkit-touch-callout: none; }
+.orb-btn:active .alpha { transform: scale(.97); }
+.orb-btn .alpha { transition: transform .2s var(--ease); }
 .orb-btn:active .orb { transform: scale(.96); }
 .orb-btn .orb { transition: transform .2s var(--ease); }
-.orb-hint { margin-top: 2px; font-size: 11px; color: var(--lav); opacity: .7; }
 .greet { text-align: center; margin-top: 10px; }
 .greet h1 { margin: 0; font-size: 26px; font-weight: 650; letter-spacing: -.01em; }
-.greet p { margin: 4px 0 0; color: var(--lav); font-size: 14px; }
-.greet p b { font-weight: 600; }
+.greet .headline { display: inline-flex; align-items: center; gap: 7px; margin: 8px 0 0; padding: 6px 14px; border-radius: 99px;
+  color: var(--lav); font-size: 14px; background: var(--glass); border: 1px solid var(--glass-line); transition: transform .15s var(--ease); }
+.greet .headline:active { transform: scale(.96); }
+.greet .headline:disabled { background: none; border-color: transparent; cursor: default; }
+.greet .headline b { font-weight: 600; }
+.headline .play { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; opacity: .85; }
 .greet .u { color: var(--rd); } .greet .s { color: var(--or); }
 
 .alerts { margin-top: 20px; }
 .alerts:empty { display: none; }
 .al-card { display: block; padding: 6px 16px; }
 .al-main { display: flex; gap: 12px; align-items: center; padding: 10px 0; }
-.al-ic { flex: none; width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; font-weight: 700; }
+.al-ic { flex: none; width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; font-size: 22px; line-height: 1; }
 .al-ic.urgent { background: rgba(255, 77, 140, .2); color: var(--rd-ink); }
 .al-ic.soon { background: rgba(255, 196, 107, .16); color: var(--or); }
 .al-ic.info { background: color-mix(in srgb, var(--lav) 14%, transparent); color: var(--lav); }
@@ -213,7 +218,7 @@ a { color: inherit; text-decoration: none; }
 /* ---------- ช่องสั่งงาน ---------- */
 .cmd {
   position: fixed; z-index: 5; left: max(14px, env(safe-area-inset-left)); right: max(14px, env(safe-area-inset-right));
-  bottom: calc(env(safe-area-inset-bottom) + 12px); max-width: 492px; margin: 0 auto;
+  bottom: calc(env(safe-area-inset-bottom) + 12px + var(--kb, 0px)); max-width: 492px; margin: 0 auto;
   display: flex; align-items: center; gap: 10px; padding: 7px 7px 7px 16px; border-radius: 99px;
   background: color-mix(in srgb, var(--bg) 55%, transparent);
 }
@@ -229,7 +234,7 @@ a { color: inherit; text-decoration: none; }
 .mic svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
 .cmd.listening .mic { animation: twinkle 1s infinite; }
 .answer {
-  position: fixed; z-index: 5; left: 18px; right: 18px; bottom: calc(env(safe-area-inset-bottom) + 72px); max-width: 480px; margin: 0 auto;
+  position: fixed; z-index: 5; left: 18px; right: 18px; bottom: calc(env(safe-area-inset-bottom) + 72px + var(--kb, 0px)); max-width: 480px; margin: 0 auto;
   padding: 12px 16px; border-radius: 18px; background: color-mix(in srgb, var(--bg) 78%, var(--vi) 22%); border: 1px solid var(--glass-line);
   font-size: 14px; box-shadow: 0 10px 30px rgba(0, 0, 0, .35); animation: rise .3s var(--ease);
 }
@@ -238,7 +243,7 @@ a { color: inherit; text-decoration: none; }
 
 /* ---------- หน้าซ้อน (ซิงก์ / รายงาน) ---------- */
 .overlay {
-  position: fixed; inset: 0; z-index: 10; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  position: fixed; inset: 0; z-index: 10; overflow-y: auto; overscroll-behavior: none; -webkit-overflow-scrolling: touch;
   padding: calc(env(safe-area-inset-top) + 12px) max(18px, env(safe-area-inset-right)) calc(env(safe-area-inset-bottom) + 24px) max(18px, env(safe-area-inset-left));
   background: radial-gradient(60% 30% at 25% 20%, var(--a1), transparent 70%), radial-gradient(50% 25% at 85% 35%, var(--a2), transparent 70%), var(--bg);
   animation: fadein .35s var(--ease);
@@ -281,11 +286,6 @@ a.rp-line:active { background: var(--line); }
 .rp-line .go { color: var(--dim); }
 .cursor { display: inline-block; width: 8px; height: 15px; margin-left: 4px; vertical-align: -2px; background: var(--pk); box-shadow: 0 0 8px var(--pk); animation: blink 1s steps(2) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
-.rp-label { margin: 26px 0 8px; font-size: 10px; letter-spacing: .14em; color: var(--dim); }
-.rp-mod { display: flex; align-items: center; gap: 10px; padding: 11px 13px; margin-bottom: 8px; border-radius: 12px; border: 1px solid var(--glass-line); font-size: 13px; }
-.rp-mod span:nth-child(2) { flex: 1; }
-.rp-mod small { font-size: 11px; }
-.rp-mod .chev { stroke: currentColor; }
 
 .rp-voice { padding: 12px; border-radius: 18px; }
 .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 12px; background: var(--well); }
@@ -358,3 +358,9 @@ button.rp-line { font: inherit; color: inherit; }
 .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 24px; height: 24px; border-radius: 50%; background: #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, .3); transition: transform .2s var(--ease); }
 .switch[aria-checked="true"] { background: var(--grad); }
 .switch[aria-checked="true"]::after { transform: translateX(20px); }
+
+/* คีย์บอร์ดขึ้น: ช่องสั่งงานชิดเหนือคีย์บอร์ด (ไม่ต้องเผื่อ safe-area ล่าง) */
+.kb-open .cmd { bottom: calc(8px + var(--kb, 0px)); }
+.kb-open .answer { bottom: calc(68px + var(--kb, 0px)); }
+/* ชื่อการ์ดยาว (เช่นชื่อรถ) ตัดด้วย … */
+.app-name .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

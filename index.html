@@ -26,14 +26,13 @@
     <div class="hud-top mono"><span class="live" id="liveState"><i></i><b>ALPHA · ONLINE</b></span><span class="hud-right"><span id="hudDate"></span>
       <button type="button" class="gear" id="settingsBtn" aria-label="ตั้งค่า"><svg viewBox="0 0 24 24"><path d="M4 7h9M18 7h2M4 17h2M11 17h9"/><circle cx="15.5" cy="7" r="2.5"/><circle cx="8.5" cy="17" r="2.5"/></svg></button></span></div>
 
-    <button type="button" class="orb-btn" id="orbBtn" aria-label="เปิดหน้าสรุป">
+    <a class="orb-btn" id="orbBtn" href="claude://claude.ai/project/01a1a61f-5150-74b6-b77b-14f320f89b67" aria-label="เปิด Alpha ใน Claude">
       <span class="alpha alpha-lg" id="alpha" aria-hidden="true"><i class="glow-orb"></i><i class="ring r1"></i><span class="char"><img src="/assets/alpha-character.png" alt="" draggable="false"><i class="shirt"></i></span><i class="ring r2"></i><i class="spark s1"></i><i class="spark s2"></i></span>
-      <span class="orb-hint">แตะเพื่อฟังสรุป</span>
-    </button>
+    </a>
 
     <header class="greet">
       <h1 id="greet">สวัสดี</h1>
-      <p id="headline">กำลังโหลด…</p>
+      <button type="button" class="headline" id="headline" data-brief aria-label="ฟังสรุป">กำลังโหลด…</button>
     </header>
 
     <section class="alerts" id="alerts" aria-live="polite"></section>
@@ -72,8 +71,6 @@
       </button>
     </header>
     <div class="rp-body mono" id="rpBody"></div>
-    <div class="rp-label mono">// MODULES</div>
-    <div class="rp-modules mono" id="rpModules"></div>
   </section>
 
   <!-- หน้าตั้งค่า -->
@@ -104,6 +101,16 @@
       <p class="set-hint" id="paceHint"></p>
       <div class="toggle-row" style="margin-top:14px"><span id="briefLabel"></span><button type="button" class="switch" id="briefSwitch" role="switch" aria-checked="true" aria-labelledby="briefLabel"></button></div>
       <p class="set-hint" id="briefHint"></p>
+    </div>
+    <div class="set-label" id="speechLabel"></div>
+    <div class="glass set-card" style="margin-top:0">
+      <label class="set-row" for="tightPerDay"><span id="tightLabel"></span>
+        <input id="tightPerDay" type="number" inputmode="numeric" min="0" step="10"></label>
+      <label class="set-row" for="overMid" style="margin-top:10px"><span id="overMidLabel"></span>
+        <input id="overMid" type="number" inputmode="numeric" min="0" step="50"></label>
+      <label class="set-row" for="overHigh" style="margin-top:10px"><span id="overHighLabel"></span>
+        <input id="overHigh" type="number" inputmode="numeric" min="0" step="100"></label>
+      <p class="set-hint" id="speechHint"></p>
     </div>
     <div class="set-label" id="voiceLabel"></div>
     <div class="glass rp-voice">

@@ -23,8 +23,9 @@ const session = {
 };
 
 // การตั้งค่าของ Alpha (ที่เดียว): paceMin = แจ้ง "ใช้เร็วกว่าแผน" เมื่อเกินกี่บาท
+// tightPerDay / overMid / overHigh = เกณฑ์เลือกประโยคสรุปค่ากิน (ดู speechMoney)
 const SETTINGS_KEY = 'alpha.settings';
-const DEFAULT_SETTINGS = { paceMin: 100, morningBrief: true };
+const DEFAULT_SETTINGS = { paceMin: 100, morningBrief: true, tightPerDay: 200, overMid: 300, overHigh: 1000 };
 const settings = { ...DEFAULT_SETTINGS, ...store.get(SETTINGS_KEY, {}) };
 const saveSettings = () => store.set(SETTINGS_KEY, settings);
 
@@ -80,9 +81,11 @@ function renderHome() {
   const soon = alerts.filter((a) => a.level === 'soon').length;
   const hasData = Object.values(results).some((r) => r.summary);
   const H = M.headline;
+  $('#headline').disabled = !hasData;
   $('#headline').innerHTML = urgent ? `<b class="u">${esc(H.urgent(urgent))}</b>${soon ? `${esc(H.join)}<b class="s">${esc(H.soon(soon))}</b>` : ''}`
     : soon ? `<b class="s">${esc(H.soon(soon))}</b>`
       : esc(!hasData && syncing ? H.loading : hasData ? H.allGood : H.noData);
+  if (hasData) $('#headline').insertAdjacentHTML('beforeend', PLAY);
 
   // ป้ายแจ้งเตือน: อันแรกเด่น + อีกไม่เกิน 2 อัน + ดูทั้งหมด
   const top = alerts.slice(0, 3);
@@ -94,7 +97,7 @@ function renderHome() {
       ? `<button type="button" class="${cls}" data-toggle aria-expanded="false">${inner}</button>${subList(a)}`
       : `<a class="${cls}" href="${esc(a.link || a.app.path)}">${inner}</a>`);
     $('#alerts').innerHTML = `<div class="glass al-card">
-      ${tag(first, 'al-main', `<span class="al-ic ${first.level}">!</span>
+      ${tag(first, 'al-main', `<span class="al-ic ${first.level}" aria-hidden="true">💁🏻‍♀️</span>
         <span class="al-text"><b>${esc(first.text)}</b><small>${esc(first.app.name)}</small></span>${first.items?.length ? CARET : CHEV}`)}
       ${rest.map((a) => tag(a, 'al-row', `<span class="dot ${a.level}"></span><span>${esc(a.text)}</span><small>${esc(a.app.name)}</small>${a.items?.length ? CARET : ''}`)).join('')}
       ${alerts.length > 1 ? `<button type="button" class="al-more" data-report>${esc(M.seeAll(alerts.length))}</button>` : ''}
@@ -104,6 +107,7 @@ function renderHome() {
   $('#apps').innerHTML = APPS.map(appCard).join('');
 }
 
+const PLAY = '<svg class="play" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h4l5 4V6L8 10z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/></svg>';
 const CARET = '<svg class="caret" viewBox="0 0 14 8"><path d="M1.5 1.5L7 6.5l5.5-5"/></svg>';
 function subList(a) {
   return `<div class="al-sub" hidden>${a.items.map((it) => `<a href="${esc(it.link || a.link || a.app.path)}"><span>${esc(it.text)}</span>${CHEV}</a>`).join('')}</div>`;
@@ -123,11 +127,12 @@ function appCard(a) {
       <span class="sk" style="height:30px;width:70%;margin-top:14px"></span><span class="sk" style="height:10px;width:85%;margin-top:9px"></span></a>`;
   }
   const [main, ...more] = s.stats || [];
+  const title = s.title || a.name;
   const meta = r.status === 'error' ? `<div class="app-meta err mono">OFFLINE · ${esc(ago(r.at))}</div>`
     : r.status === 'loading' ? `<div class="app-meta mono">SYNCING…</div>`
       : `<div class="app-meta mono">${esc(M.card.updated(ago(r.at)))}</div>`;
   return `<a class="glass app" href="${esc(a.path)}">
-    <span class="app-name" style="color:${esc(a.color)}">${icon}${esc(a.name)}</span>
+    <span class="app-name" style="color:${esc(a.color)}">${icon}<span class="nm">${esc(title)}</span></span>
     ${main ? `<div class="app-big">${esc(main.value)}<small> ${esc(main.unit)}</small></div><div class="app-sub">${esc(main.label)}${more[0] ? ` · ${esc(more[0].value)} ${esc(more[0].unit)}` : ''}</div>` : ''}
     ${meta}</a>`;
 }
@@ -223,34 +228,65 @@ async function refresh() {
 
 /* ---------- หน้ารายงาน ---------- */
 let typingTimer = null;
-function reportLines() {
-  const alerts = allAlerts();
-  const lines = [];
-  for (const a of alerts) {
-    const cls = a.level === 'urgent' ? 'u' : a.level === 'soon' ? 's' : 'i';
-    const group = a.items?.length ? a.items : null;
-    lines.push({ html: `&gt; <span class="${cls}">${esc(M.report.level[a.level] || '')}</span> ${esc(a.text)}${group ? ' <span class="go">▾</span>' : ''}`,
-      text: a.text, link: group ? null : a.link || a.app.path, toggle: !!group });
-    if (group) for (const it of group) lines.push({ html: `<span class="go">└</span> ${esc(it.text)}`, link: it.link || a.link || a.app.path, sub: true });
+const pick = (list) => list[Math.floor(Math.random() * list.length)];
+const int = (n) => Math.round(Number(n) || 0).toLocaleString('th-TH');
+const factsOf = (id) => (results[id]?.status !== 'setup' && results[id]?.summary?.facts) || null;
+
+// ค่ากิน: A ยังสบาย · B ใช้ได้ต่อวันต่ำกว่าเกณฑ์ · เกินงบ C (เบา) / D (เกิน ≥ overMid) / E (เกิน ≥ overHigh หรือรอบก่อนก็เกิน)
+function speechMoney(f) {
+  if (!f || !Number.isFinite(f.left)) return null;
+  const v = { left: int(f.left), perDay: int(f.perDay), daysToPayday: f.days, over: int(f.over) };
+  const S = M.speech;
+  if (f.over > 0) {
+    const lvl = f.over >= settings.overHigh || f.prevOver ? 'E' : f.over >= settings.overMid ? 'D' : 'C';
+    return pick(S[lvl])(v);
   }
-  for (const a of APPS) {
-    const s = results[a.id]?.summary;
-    if (!s || results[a.id].status === 'setup') continue;
-    for (const b of s.brief || []) lines.push({ html: `&gt; ${esc(b)}`, text: b, link: a.path });
+  return pick(f.perDay >= settings.tightPerDay ? S.A : S.B)(v);
+}
+
+// เรื่องที่ประโยคพูดครอบคลุมแล้ว ไม่ต้องแสดงซ้ำ (ค่ากิน · งวดผ่อน · เงินเดือนเข้า · น้ำมันใกล้หมด)
+function coveredBySpeech(a, money, fuel) {
+  if (a.app.id === 'finance-app') return money != null && (a.kind === 'pace' || a.kind === 'installment' || /งบ|เงินเดือน/.test(a.text));
+  if (a.app.id === 'fuel-logger') return fuel && /น้ำมัน/.test(a.text);
+  return false;
+}
+
+let lastLines = [];
+function reportLines() {
+  const S = M.speech;
+  const fin = factsOf('finance-app');
+  const fuel = factsOf('fuel-logger');
+  const finApp = APPS.find((a) => a.id === 'finance-app');
+  const fuelApp = APPS.find((a) => a.id === 'fuel-logger');
+  const lines = [];
+  const say = (text, link) => text && lines.push({ html: `&gt; ${esc(text)}`, text, link });
+
+  // 1) ค่ากิน + วันเงินเดือนเข้า  2) ค่างวด  3) รถ — ไม่มีข้อมูลก็ข้าม
+  const money = speechMoney(fin);
+  say(money, finApp && `${finApp.path}#today`);
+  if (fin?.install) say(pick(S.install)({ installDays: fin.install.days, installCount: fin.install.count, installTotal: int(fin.install.total) }), finApp && `${finApp.path}#loans`);
+  const carLow = !!fuel?.fuelLow;
+  if (carLow) say(pick(S.car)({ kmPerL: fuel.kmPerL ? Math.round(fuel.kmPerL) : '–' }), fuelApp && `${fuelApp.path}#add`);
+
+  // เรื่องอื่นที่ยังไม่ได้พูด (เช่น เช็กระยะ ต่อภาษี งวดสุดท้าย)
+  for (const a of allAlerts()) {
+    if (coveredBySpeech(a, money, carLow)) continue;
+    const group = a.items?.length ? a.items : null;
+    lines.push({ html: `&gt; ${esc(a.text)}${group ? ' <span class="go">▾</span>' : ''}`, text: a.text, link: group ? null : a.link || a.app.path, toggle: !!group });
+    if (group) for (const it of group) lines.push({ html: `<span class="go">└</span> ${esc(it.text)}`, link: it.link || a.link || a.app.path, sub: true });
   }
   for (const a of APPS) {
     const r = results[a.id];
     if (r?.status === 'setup') lines.push({ html: `&gt; <span class="i">${esc(M.report.notSet(a.name))}</span>`, text: M.report.notSet(a.name), link: a.setupLink || a.path });
   }
-  if (!alerts.length && lines.length) lines.unshift({ html: `&gt; <span class="i">${esc(M.report.nothingUrgent)}</span>`, text: M.report.nothingUrgent });
   if (!lines.length) lines.push({ html: `&gt; ${esc(M.report.empty)}`, text: M.report.empty });
+  lastLines = lines;
   return lines;
 }
 
 function renderReport() {
-  const mods = APPS.length;
   const anyError = Object.values(results).some((r) => r.status === 'error');
-  $('#rpState').textContent = `${syncing ? 'SYNCING' : anyError ? 'PARTIAL' : 'ONLINE'} · ${mods} MODULES`;
+  $('#rpState').textContent = syncing ? 'SYNCING' : anyError ? 'PARTIAL' : 'ONLINE';
   const ts = syncedAt || new Date();
   const lines = reportLines();
   $('#rpBody').innerHTML = `<div class="ts">[${clock(ts)}] ${syncing ? 'syncing…' : 'sync complete'}</div>
@@ -261,12 +297,6 @@ function renderReport() {
         ? `<a class="rp-line${l.sub ? ' rp-sub' : ''}" href="${esc(l.link)}" data-i="${i}"${l.sub ? ' hidden' : ''}><span class="tx">${l.html}</span></a>`
         : `<div class="rp-line" data-i="${i}"><span class="tx">${l.html}</span></div>`)).join('')}
     <span class="cursor"></span>`;
-  $('#rpModules').innerHTML = APPS.map((a, i) => {
-    const r = results[a.id];
-    const st = !a.summary ? ['LINK', 'var(--lav)'] : r.status === 'ok' ? ['ONLINE', a.color] : r.status === 'loading' ? ['SYNCING', 'var(--or)'] : r.status === 'setup' ? ['NOT SET', 'var(--rd)'] : ['OFFLINE', 'var(--rd)'];
-    return `<a class="rp-mod" href="${esc(r?.status === 'setup' ? a.setupLink || a.path : a.path)}" style="color:${esc(st[1])};border-color:color-mix(in srgb, ${esc(st[1])} 35%, transparent)">
-      <span>${String(i + 1).padStart(2, '0')}</span><span style="color:var(--ink)">${esc(a.id)}</span><small>${st[0]}</small>${CHEV}</a>`;
-  }).join('');
   typeLines();
   return lines;
 }
@@ -402,11 +432,24 @@ $('#speakBtn').addEventListener('click', () => {
   const btn = $('#speakBtn');
   if (btn.classList.contains('on')) { stopSpeaking(); return; }
   btn.classList.add('on');
-  const text = [M.report.intro(greeting()).replace(/:$/, ''), ...reportLines().filter((l) => !l.sub).map((l) => l.text)].join(' . ');
+  // อ่านประโยคชุดเดียวกับที่แสดงอยู่ (ไม่สุ่มใหม่)
+  const lines = $('#report').hidden || !lastLines.length ? reportLines() : lastLines;
+  const text = [M.report.intro(greeting()), ...lines.filter((l) => !l.sub && l.text).map((l) => l.text)].join(' . ');
   speak(text, () => btn.classList.remove('on'));
 });
 
 /* ---------- ช่องสั่งงาน ---------- */
+// iPhone: ตอนคีย์บอร์ดขึ้น วางช่องสั่งงานไว้เหนือคีย์บอร์ดพอดี ตามขอบล่างของ visual viewport
+const vv = window.visualViewport;
+function placeCmd() {
+  const kb = vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0;
+  document.documentElement.style.setProperty('--kb', `${Math.round(kb)}px`);
+  document.body.classList.toggle('kb-open', kb > 80);
+}
+if (vv) { vv.addEventListener('resize', placeCmd); vv.addEventListener('scroll', placeCmd); }
+// คีย์บอร์ดดันหน้าขึ้นแล้วไม่เลื่อนกลับ → ดึงกลับที่เดิม
+$('#cmdInput').addEventListener('focus', () => setTimeout(() => { window.scrollTo(0, 0); placeCmd(); }, 320));
+$('#cmdInput').addEventListener('blur', () => setTimeout(() => { window.scrollTo(0, 0); placeCmd(); }, 60));
 let answerTimer = null;
 function showAnswer(say, sub) {
   const el = $('#answer');
@@ -471,7 +514,11 @@ $('#micBtn').addEventListener('click', () => {
 });
 
 /* ---------- events ---------- */
-$('#orbBtn').addEventListener('click', () => openReport());
+// แตะหัวข้อ (เช่น "2 เรื่องใกล้ถึง") = เปิดหน้าสรุปและอ่านให้ฟัง (โหมด Siri: เปิดหน้าอย่างเดียว ไม่สลับแอปเอง)
+$('#headline').addEventListener('click', () => {
+  openReport();
+  if (voiceMode === 'device') setTimeout(() => { if (!$('#speakBtn').classList.contains('on')) $('#speakBtn').click(); }, 350);
+});
 $('#reportBack').addEventListener('click', () => closeReport());
 $('#syncSkip').addEventListener('click', hideSync);
 document.addEventListener('click', (e) => {
@@ -543,6 +590,12 @@ function renderSettings() {
   $('#paceLabel').textContent = S.paceLabel;
   $('#paceHint').textContent = S.paceHint;
   $('#paceMin').value = settings.paceMin;
+  $('#speechLabel').textContent = S.speechLabel;
+  $('#tightLabel').textContent = S.tightLabel;
+  $('#overMidLabel').textContent = S.overMidLabel;
+  $('#overHighLabel').textContent = S.overHighLabel;
+  $('#speechHint').textContent = S.speechHint;
+  for (const k of ['tightPerDay', 'overMid', 'overHigh']) $(`#${k}`).value = settings[k];
   $('#briefLabel').textContent = S.briefLabel;
   $('#briefHint').textContent = S.briefHint;
   $('#briefSwitch').setAttribute('aria-checked', String(!!settings.morningBrief));
@@ -624,6 +677,14 @@ $('#paceMin').addEventListener('change', (e) => {
   saveSettings();
   renderHome();
 });
+for (const k of ['tightPerDay', 'overMid', 'overHigh']) {
+  $(`#${k}`).addEventListener('change', (e) => {
+    const v = Math.max(0, Math.round(Number(e.target.value) || 0));
+    settings[k] = v;
+    e.target.value = v;
+    saveSettings();
+  });
+}
 // กลับมาที่ Hub (เช่นกดกลับจากแอป หรือสลับแอป) แล้วข้อมูลเก่ากว่า 2 นาที ให้ดึงใหม่เงียบ ๆ
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && (!syncedAt || Date.now() - syncedAt > 120000)) refresh();
@@ -694,7 +755,8 @@ function morningBrief() {
 
 /* ---------- เริ่ม ---------- */
 // ข้อความคงที่ในหน้า HTML ดึงจาก messages.js
-$('.orb-hint').textContent = M.orbHint;
+$('#orbBtn').setAttribute('aria-label', M.alphaLabel);
+$('#headline').setAttribute('aria-label', M.headlineHint);
 $('#cmdInput').placeholder = M.input.placeholder;
 $('#sync h2').textContent = M.sync.title;
 $('#syncSkip').textContent = M.sync.skip;
