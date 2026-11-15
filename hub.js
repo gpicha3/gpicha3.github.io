@@ -101,7 +101,7 @@ function renderHome() {
       ? `<button type="button" class="${cls}" data-toggle aria-expanded="false">${inner}</button>${subList(a)}`
       : `<a class="${cls}" href="${esc(a.link || a.app.path)}">${inner}</a>`);
     $('#alerts').innerHTML = `<div class="glass al-card">
-      ${tag(first, 'al-main', `<span class="al-ic ${first.level}" aria-hidden="true">💁🏻‍♀️</span>
+      ${tag(first, 'al-main', `<span class="al-ic ${first.level}" aria-hidden="true"><i class="al-face"><img src="/assets/alpha-character.png" alt=""></i></span>
         <span class="al-text"><b>${esc(first.text)}</b><small>${esc(first.app.name)}</small></span>${first.items?.length ? CARET : CHEV}`)}
       ${rest.map((a) => tag(a, 'al-row', `<span class="dot ${a.level}"></span><span>${esc(a.text)}</span><small>${esc(a.app.name)}</small>${a.items?.length ? CARET : ''}`)).join('')}
       ${alerts.length > 1 ? `<button type="button" class="al-more" data-report>${esc(M.seeAll(alerts.length))}</button>` : ''}

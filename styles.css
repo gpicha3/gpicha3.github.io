@@ -175,6 +175,9 @@ a { color: inherit; text-decoration: none; }
 .al-card { display: block; padding: 6px 16px; }
 .al-main { display: flex; gap: 12px; align-items: center; padding: 10px 0; }
 .al-ic { flex: none; width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; font-size: 22px; line-height: 1; }
+/* หน้า Alpha ขนาดเท่าอิโมจิ (ครอปเฉพาะหัวจากรูปตัวละคร) */
+.al-face { position: relative; display: block; width: 24px; height: 24px; overflow: hidden; }
+.al-face img { position: absolute; left: 50%; top: 0; width: 38px; transform: translateX(-50%); -webkit-user-drag: none; }
 .al-ic.urgent { background: rgba(255, 77, 140, .2); color: var(--rd-ink); }
 .al-ic.soon { background: rgba(255, 196, 107, .16); color: var(--or); }
 .al-ic.info { background: color-mix(in srgb, var(--lav) 14%, transparent); color: var(--lav); }
