@@ -442,7 +442,9 @@ $('#speakBtn').addEventListener('click', () => {
 // iPhone: ตอนคีย์บอร์ดขึ้น วางช่องสั่งงานไว้เหนือคีย์บอร์ดพอดี ตามขอบล่างของ visual viewport
 const vv = window.visualViewport;
 function placeCmd() {
-  const kb = vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0;
+  // iPhone (PWA) บางทีค่า innerHeight กับ visualViewport ไม่ตรงกันแม้ไม่มีคีย์บอร์ด → นับเฉพาะตอนช่องสั่งงานถูกโฟกัส
+  const typing = document.activeElement === $('#cmdInput');
+  const kb = vv && typing ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0;
   document.documentElement.style.setProperty('--kb', `${Math.round(kb)}px`);
   document.body.classList.toggle('kb-open', kb > 80);
 }
