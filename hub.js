@@ -9,11 +9,14 @@ import { openCard, closeCard, isOpen as cardOpen, setBusy, bindCard, isBig, open
 import * as sheet from './log/sheet.js';
 import { mountFace } from './alpha-face.js';
 
-// ประโยคพูด + ตารางคำ → หมวด ของการจดรายจ่าย: โหลดพร้อมกัน (index.html preload ไว้ตั้งแต่ต้น)
-const [, CATEGORY_TABLE] = await Promise.all([
+// ประโยคพูด + ตารางคำ → หมวด ของการจดรายจ่าย: โหลดพร้อมกันเบื้องหลัง (index.html preload ไว้ตั้งแต่ต้น)
+// หน้าแรกแสดงตัวเลขจาก cache ได้เลยโดยไม่ต้องรอ · ส่วนที่ต้องใช้ประโยค (อารมณ์ตัวละคร หน้าสรุป) รอ `ready`
+let messagesReady = false;
+let CATEGORY_TABLE = { categories: {}, guess: [] };
+const ready = Promise.all([
   loadMessages(),
-  fetch('/data/categoryWords.th.json').then((r) => r.json()).catch(() => ({ categories: {}, guess: [] })),
-]);
+  fetch('/data/categoryWords.th.json').then((r) => r.json()).then((t) => { CATEGORY_TABLE = t; }).catch(() => {}),
+]).then(() => { messagesReady = true; });
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -142,7 +145,7 @@ function renderHome() {
 
   $('#apps').innerHTML = APPS.map(appCard).join('');
   fitHome();
-  if (!syncing && (hasData || anyError)) setEmotion(brief().emotion);
+  if (messagesReady && !syncing && (hasData || anyError)) setEmotion(brief().emotion);
 }
 
 // ตัวเลขกับหน่วยไม่แยกบรรทัด เช่น "อีก 2 วัน" ไม่ขาดเป็น "อีก 2 / วัน"
@@ -297,6 +300,7 @@ async function refresh() {
   renderHome();
   // เปิดหน้ารายงานค้างไว้ระหว่างซิงก์ → อัปเดตด้วยข้อมูลใหม่
   if (!$('#report').hidden) renderReport();
+  await ready;
   morningBrief();
   logPerf('sync all', performance.now() - started, !Object.values(results).some((r) => r.status === 'error'));
   prefetchApps();
@@ -419,6 +423,7 @@ function typeLines() {
 }
 
 function openReport({ push = true } = {}) {
+  if (!messagesReady) { ready.then(() => openReport({ push })); return; }
   const el = $('#report');
   if (!el.hidden) return;
   el.hidden = false;
@@ -1167,6 +1172,8 @@ if (location.hash === '#report') openReport({ push: false });
 else if (location.hash === '#settings') openSettings();
 else if (needWelcome()) showSync();
 document.documentElement.classList.remove('welcome'); // ส่งต่อจากสคริปต์ใน <head> ให้ hub คุมเอง
+logPerf('first render', performance.now());
+ready.then(() => renderHome()); // ประโยคพร้อมแล้ว: ใส่อารมณ์ตัวละครตามสรุป
 refresh();
 renderPending();
 flushLogQueue();
