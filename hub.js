@@ -9,16 +9,20 @@ import { openCard, closeCard, isOpen as cardOpen, setBusy, bindCard, isBig, open
 import * as sheet from './log/sheet.js';
 import { mountFace } from './alpha-face.js';
 
-await loadMessages();
-// ตารางคำ → หมวด ของการจดรายจ่าย
-const CATEGORY_TABLE = await fetch('/data/categoryWords.th.json', { cache: 'no-cache' }).then((r) => r.json()).catch(() => ({ categories: {}, guess: [] }));
+// ประโยคพูด + ตารางคำ → หมวด ของการจดรายจ่าย: โหลดพร้อมกัน (index.html preload ไว้ตั้งแต่ต้น)
+const [, CATEGORY_TABLE] = await Promise.all([
+  loadMessages(),
+  fetch('/data/categoryWords.th.json').then((r) => r.json()).catch(() => ({ categories: {}, guess: [] })),
+]);
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const CACHE_KEY = 'hub.cache.v1';     // ผลสรุปล่าสุดของแต่ละแอป (เปิดแล้วเห็นทันที)
-const SYNC_SEEN = 'hub.syncShown';    // sessionStorage: แสดงหน้าซิงก์ครั้งเดียวต่อการเปิดแอป
-const TIMEOUT = 20000;
+const WELCOME_DAY = 'hub.welcomeDay'; // วันที่แสดงหน้า welcome ล่าสุด (แสดงครั้งแรกของวัน หรือตอนไม่มี cache)
+const PERF_KEY = 'hub.perf';          // เวลาโหลดล่าสุด 30 ครั้ง (ทุก request ไป Apps Script + สรุปของแต่ละแอป)
+const TIMEOUT = 8000;                 // แอปไหนช้ากว่านี้ ใช้ข้อมูลล่าสุดไปก่อน
+const WELCOME_MAX = 2200;             // หน้า welcome ยาวสุด (มี cache) · ไม่มี cache เลยรอได้ถึง TIMEOUT
 const LEVEL_RANK = { urgent: 0, soon: 1, info: 2 };
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const CHEV = '<svg class="chev" viewBox="0 0 8 14"><path d="M1.5 1.5L6.5 7l-5 5.5"/></svg>';
@@ -27,10 +31,30 @@ const store = {
   get(k, fb) { try { const v = localStorage.getItem(k); return v == null ? fb : JSON.parse(v); } catch { return fb; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage unavailable */ } },
 };
-const session = {
-  get(k) { try { return sessionStorage.getItem(k); } catch { return null; } },
-  set(k, v) { try { sessionStorage.setItem(k, v); } catch { /* ignore */ } },
+/* ---------- จับเวลา: ทุก request ไป Apps Script + สรุปของแต่ละแอป (console + หน้าตั้งค่า) ---------- */
+const perf = store.get(PERF_KEY, []);
+function logPerf(tag, ms, ok = true) {
+  const entry = { tag, ms: Math.round(ms), ok, at: Date.now() };
+  console.info(`[hub] ${tag} ${entry.ms}ms${ok ? '' : ' (failed)'}`);
+  perf.push(entry);
+  while (perf.length > 30) perf.shift();
+  store.set(PERF_KEY, perf);
+}
+const appOfUrl = (url) => APPS.find((a) => { const s = a.setupKey && store.get(a.setupKey, null); return s?.url && url.startsWith(s.url); });
+const nativeFetch = window.fetch.bind(window);
+window.fetch = async (input, init) => {
+  const url = String(input?.url || input);
+  if (!/^https:\/\/script\.google/.test(url) && !/\/mock\//.test(url)) return nativeFetch(input, init);
+  const action = new URL(url, location.href).searchParams.get('action');
+  const tag = `${appOfUrl(url)?.name || 'script'}${action ? ` ${action}` : ''}${init?.method === 'POST' ? ' POST' : ''}`;
+  const t0 = performance.now();
+  try {
+    const res = await nativeFetch(input, init);
+    logPerf(tag, performance.now() - t0, res.ok);
+    return res;
+  } catch (err) { logPerf(tag, performance.now() - t0, false); throw err; }
 };
+let firstNumbersAt = null;
 
 // การตั้งค่าของ Alpha (ที่เดียว): paceMin = แจ้ง "ใช้เร็วกว่าแผน" เมื่อเกินกี่บาท
 // tightPerDay / lowPerDay / overMid / overHigh = เกณฑ์เลือกระดับค่ากิน (ดู speech.js → foodLevel)
@@ -102,22 +126,42 @@ function renderHome() {
   if (!top.length) $('#alerts').innerHTML = '';
   else {
     const [first, ...rest] = top;
+    // ยอดเตรียมวันเงินเข้า (Finance): แสดงแยก ttb / บิลบัตร + ยอดรวม ไม่ต้องกาง
+    if (first.kind === 'payday' && first.lines?.length) first.items = null;
     // รายการที่รวมหลายงวด (items) แตะแล้วกางรายการย่อย แทนการเปิดลิงก์
     const tag = (a, cls, inner) => (a.items?.length
       ? `<button type="button" class="${cls}" data-toggle aria-expanded="false">${inner}</button>${subList(a)}`
       : `<a class="${cls}" href="${esc(a.link || a.app.path)}">${inner}</a>`);
     $('#alerts').innerHTML = `<div class="glass al-card">
       ${tag(first, 'al-main', `<span class="al-ic ${first.level}" aria-hidden="true"><i class="al-face"><img src="/assets/alpha-character.png" alt=""></i></span>
-        <span class="al-text"><b>${esc(first.text)}</b><small>${esc(first.app.name)}</small></span>${first.items?.length ? CARET : CHEV}`)}
-      ${rest.map((a) => tag(a, 'al-row', `<span class="dot ${a.level}"></span><span>${esc(a.text)}</span><small>${esc(a.app.name)}</small>${a.items?.length ? CARET : ''}`)).join('')}
+        <span class="al-text"><b>${keep(first.kind === 'payday' && first.lines?.length ? first.text.replace(/ ฿[\d,.]+/, '') : first.text)}</b>${prepLines(first)}<small>${esc(first.app.name)}</small></span>${first.items?.length ? CARET : CHEV}`)}
+      ${rest.map((a) => tag(a, 'al-row', `<span class="dot ${a.level}"></span><span>${keep(a.text)}</span><small>${esc(a.app.name)}</small>${a.items?.length ? CARET : ''}`)).join('')}
       ${alerts.length > 1 ? `<button type="button" class="al-more" data-report>${esc(M.seeAll(alerts.length))}</button>` : ''}
     </div>`;
   }
 
   $('#apps').innerHTML = APPS.map(appCard).join('');
+  fitHome();
   if (!syncing && (hasData || anyError)) setEmotion(brief().emotion);
 }
 
+// ตัวเลขกับหน่วยไม่แยกบรรทัด เช่น "อีก 2 วัน" ไม่ขาดเป็น "อีก 2 / วัน"
+const keep = (t) => esc(t).replace(/ (\d[\d,.]*) (วัน|กม\.|บาท|รายการ)/g, '&nbsp;$1&nbsp;$2');
+const exact = (n) => (Number.isInteger(n) ? n.toLocaleString('en-US') : Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+function prepLines(a) {
+  if (a.kind !== 'payday' || !a.lines?.length) return '';
+  return `<span class="prep">${a.lines.map((l) => `<span><i>${esc(l.label)}</i><b>${exact(l.amount)}</b></span>`).join('')}
+    ${a.lines.length > 1 ? `<span class="sum"><i>รวมที่ต้องเตรียม</i><b>${exact(a.total)}</b></span>` : ''}
+    ${a.note ? `<em>${esc(a.note)}</em>` : ''}</span>`;
+}
+// หน้าแรกไม่เลื่อน: ถ้าการ์ดล่างสุดล้นลงไปใต้ช่องสั่งงาน ย่อตัวละครลงให้พอดี
+function fitHome() {
+  const home = $('#home');
+  home.style.setProperty('--squeeze', '0px');
+  const over = $('#apps').getBoundingClientRect().bottom - ($('#cmd').getBoundingClientRect().top - 10);
+  if (over > 0) home.style.setProperty('--squeeze', `${Math.ceil(over)}px`);
+}
+window.addEventListener('resize', () => { if (!document.body.classList.contains('kb-open')) fitHome(); });
 const PLAY = '<svg class="play" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h4l5 4V6L8 10z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/></svg>';
 const CARET = '<svg class="caret" viewBox="0 0 14 8"><path d="M1.5 1.5L7 6.5l5.5-5"/></svg>';
 function subList(a) {
@@ -134,16 +178,16 @@ function appCard(a) {
   if (r.status === 'error' && !r.summary) return offlineCard(a, M.card.errorTitle, r.error === 'unauthorized' ? M.card.errorBadToken : M.card.errorOther);
   const s = r.summary;
   if (!s) {
-    return `<a class="glass app" href="${esc(a.path)}"><span class="app-name" style="color:${esc(a.color)}">${icon}${esc(a.name)}</span>
+    return `<a class="glass app" href="${esc(a.path)}"><span class="app-name" style="--app-c:${esc(a.color)}">${icon}${esc(a.name)}</span>
       <span class="sk" style="height:30px;width:70%;margin-top:14px"></span><span class="sk" style="height:10px;width:85%;margin-top:9px"></span></a>`;
   }
   const [main, ...more] = s.stats || [];
   const title = s.title || a.name;
   const meta = r.status === 'error' ? `<div class="app-meta err mono">OFFLINE · ${esc(ago(r.at))}</div>`
-    : r.status === 'loading' ? `<div class="app-meta mono">SYNCING…</div>`
+    : r.status === 'loading' ? `<div class="app-meta mono">${esc(r.at ? M.card.updating(ago(r.at)) : M.card.loading)}</div>`
       : `<div class="app-meta mono">${esc(M.card.updated(ago(r.at)))}</div>`;
   return `<a class="glass app" href="${esc(a.path)}">
-    <span class="app-name" style="color:${esc(a.color)}">${icon}<span class="nm">${esc(title)}</span></span>
+    <span class="app-name" style="--app-c:${esc(a.color)}">${icon}<span class="nm">${esc(title)}</span></span>
     ${main ? `<div class="app-big">${esc(main.value)}<small> ${esc(main.unit)}</small></div><div class="app-sub">${esc(main.label)}${more[0] ? ` · ${esc(more[0].value)} ${esc(more[0].unit)}` : ''}</div>` : ''}
     ${meta}</a>`;
 }
@@ -154,41 +198,64 @@ function offlineCard(a, title, sub) {
     <div class="row"><div><b>${esc(a.name)} · ${esc(title)}</b><small>${esc(sub)}</small></div><span class="pill">${esc(M.card.setupButton)}</span></div></a>`;
 }
 
-/* ---------- หน้าซิงก์ ---------- */
+/* ---------- หน้า welcome (HUD) ---------- */
+// บรรทัดบูตติ๊กตามการโหลดจริงของแต่ละแอป: CONNECTING X ··· → X CONNECTED ✓ (หรือ OFFLINE / NOT SET)
+// แสดงครั้งแรกของวัน หรือตอนไม่มี cache · แตะที่ไหนก็ข้าม · ยาวสุด WELCOME_MAX
+const syncApps = () => APPS.filter((a) => a.summary);
+const upName = (a) => a.name.toUpperCase();
+let welcomeTimer = null;
 function renderSync() {
-  const list = APPS.filter((a) => a.summary);
-  const done = list.filter((a) => results[a.id].status !== 'loading').length;
-  $('#syncCount').textContent = `LINK ${done}/${list.length}`;
-  const label = (a) => a.id.toUpperCase().replace(/-APP$/, '').replace(/-/g, '.');
-  const dots = (s) => '.'.repeat(Math.max(3, 20 - s.length));
-  $('#syncLog').innerHTML = APPS.map((a) => {
-    const name = label(a);
-    if (!a.summary) return `<div><span class="mute">·</span> ${esc(name)} ${dots(name)} <span class="mute">NO SUMMARY</span></div>`;
-    const st = results[a.id].status;
-    if (st === 'loading') return `<div><span class="run">›</span> ${esc(name)} ${dots(name)} <span class="run">LINKING</span></div><div class="bar"><i></i></div>`;
-    if (st === 'ok') return `<div><span class="ok">✓</span> ${esc(name)} ${dots(name)} <span class="ok">SYNCED</span></div>`;
-    if (st === 'setup') return `<div><span class="bad">✕</span> ${esc(name)} ${dots(name)} <span class="bad">NOT SET</span></div>`;
-    return `<div><span class="bad">✕</span> ${esc(name)} ${dots(name)} <span class="bad">OFFLINE</span></div>`;
-  }).join('');
-  const hasCache = Object.values(results).some((r) => r.at);
-  const newest = Math.max(0, ...Object.values(results).map((r) => r.at || 0));
-  $('#syncSub').textContent = hasCache ? M.sync.cached(ago(newest)) : M.sync.fresh;
+  const list = syncApps();
+  const log = $('#syncLog');
+  if (!log.children.length) {
+    log.innerHTML = `<div class="on"><span class="lbl">ALPHA ONLINE</span><span class="st ok">✓</span></div>${list.map((a) => `<div data-app="${esc(a.id)}"><img src="${esc(a.icon)}" alt="" width="16" height="16"><span class="lbl"></span><span class="st"></span></div>`).join('')}`;
+    list.forEach((a, i) => setTimeout(() => log.querySelector(`[data-app="${a.id}"]`)?.classList.add('on'), reduceMotion ? 0 : 120 + i * 140));
+  }
+  let done = 0;
+  for (const a of list) {
+    const row = log.querySelector(`[data-app="${a.id}"]`);
+    const r = results[a.id];
+    const [lbl, st, cls] = r.status === 'loading' ? [`CONNECTING ${upName(a)}`, '···', 'wait']
+      : r.status === 'ok' ? [`${upName(a)} CONNECTED`, '✓', 'ok']
+        : r.status === 'setup' ? [`${upName(a)} NOT SET`, '✕', 'bad']
+          : [`${upName(a)} ${r.summary ? 'LAST DATA' : 'OFFLINE'}`, r.summary ? '!' : '✕', r.summary ? 'warn' : 'bad'];
+    row.querySelector('.lbl').textContent = lbl;
+    const stEl = row.querySelector('.st');
+    stEl.textContent = st; stEl.className = `st ${cls}`;
+    if (r.status !== 'loading') done += 1;
+  }
+  $('#syncBar').style.width = `${Math.round(((1 + done) / (1 + list.length)) * 100)}%`;
+  const all = done === list.length;
+  $('#syncWelcome').textContent = all ? M.sync.welcome : '';
+  $('#syncWelcome').classList.toggle('on', all);
   $('#syncIssues').innerHTML = list.filter((a) => results[a.id].status === 'setup' || (results[a.id].status === 'error' && !results[a.id].summary)).map(appCard).join('');
+  // ครบทุกแอปแล้ว: ค้างข้อความต้อนรับครู่หนึ่ง (ไม่เกินเวลาสูงสุด) แล้วเข้าหน้าแรก · มีแอปต้องตั้งค่า = รอให้แตะเอง
+  const issues = list.some((a) => results[a.id].status === 'setup' || (results[a.id].status === 'error' && !results[a.id].summary));
+  if (all && !issues) setTimeout(hideSync, reduceMotion ? 300 : 650);
 }
 
 function showSync() {
   const el = $('#sync');
+  if (document.documentElement.classList.contains('welcome')) el.style.animation = 'none'; // ขึ้นอยู่แล้วจาก <head>
   el.hidden = false;
   el.classList.remove('closing');
+  $('#syncLog').innerHTML = '';
+  store.set(WELCOME_DAY, new Date().toDateString());
   renderSync();
+  // มี cache = ไม่ต้องรอนาน (หน้าแรกแสดงข้อมูลล่าสุดได้เลย) · ไม่มีเลย = รอได้ถึง TIMEOUT
+  const hasCache = Object.values(results).some((r) => r.summary);
+  clearTimeout(welcomeTimer);
+  welcomeTimer = setTimeout(hideSync, hasCache ? WELCOME_MAX : TIMEOUT + 500);
 }
 function hideSync() {
   const el = $('#sync');
   if (el.hidden || el.classList.contains('closing')) return;
-  session.set(SYNC_SEEN, '1');
+  clearTimeout(welcomeTimer);
+  el.style.animation = '';
   el.classList.add('closing');
   setTimeout(() => { el.hidden = true; el.classList.remove('closing'); }, reduceMotion ? 0 : 400);
 }
+const needWelcome = () => !Object.values(results).some((r) => r.summary) || store.get(WELCOME_DAY, '') !== new Date().toDateString();
 
 /* ---------- โหลดสรุปจากทุกแอป (ขนาน) ---------- */
 const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
@@ -196,9 +263,11 @@ const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeo
 async function loadOne(a) {
   const r = results[a.id];
   r.status = 'loading';
+  const t0 = performance.now();
   try {
     const mod = await import(a.summary);
     const s = await withTimeout(mod.getSummary(), TIMEOUT);
+    logPerf(`summary ${a.name}`, performance.now() - t0);
     if (s?.needsSetup) { r.status = 'setup'; r.summary = null; delete cache[a.id]; }
     else {
       r.status = 'ok'; r.summary = s; r.at = Date.now(); r.error = null;
@@ -207,6 +276,7 @@ async function loadOne(a) {
     store.set(CACHE_KEY, cache);
   } catch (err) {
     console.error(`[hub] ${a.id}`, err);
+    logPerf(`summary ${a.name}${err?.message === 'timeout' ? ' timeout' : ''}`, performance.now() - t0, false);
     r.status = 'error';
     r.error = err?.message || 'failed';
   }
@@ -228,13 +298,8 @@ async function refresh() {
   // เปิดหน้ารายงานค้างไว้ระหว่างซิงก์ → อัปเดตด้วยข้อมูลใหม่
   if (!$('#report').hidden) renderReport();
   morningBrief();
-  if (!$('#sync').hidden) {
-    renderSync();
-    // ถ้ามีแอปที่ต้องตั้งค่า ค้างหน้าซิงก์ไว้นานขึ้นนิดให้เห็น แล้วค่อยเข้าหน้าแรก
-    const issues = Object.values(results).some((r) => r.status !== 'ok');
-    const wait = Math.max(0, (issues ? 1800 : 900) - (performance.now() - started));
-    setTimeout(hideSync, wait);
-  }
+  logPerf('sync all', performance.now() - started, !Object.values(results).some((r) => r.status === 'error'));
+  prefetchApps();
 }
 
 /* ---------- หน้ารายงาน ---------- */
@@ -479,19 +544,25 @@ $('#speakBtn').addEventListener('click', () => {
 /* ---------- ช่องสั่งงาน ---------- */
 // ช่องสั่งงานวางจากขอบล่างของพื้นที่ที่วาดได้ (ไม่ใช้ความสูงจอ เพราะ PWA บน iPhone จะตัดส่วนที่เกินทิ้ง)
 // ตอนพิมพ์: ชิดเหนือคีย์บอร์ดตามขอบล่างของ visual viewport (--vv-bottom)
+// ช่องสั่งงานยึดขอบล่างของส่วนที่มองเห็นจริงเสมอ (CSS: top = --vv-bottom แล้วเลื่อนขึ้นเท่าความสูงตัวเอง)
+// คีย์บอร์ดขึ้น: visual viewport สั้นลง → ช่องเลื่อนตามมาติดเหนือคีย์บอร์ดพอดี (อัปเดตทุกเฟรมที่ viewport ขยับ)
 const vv = window.visualViewport;
+let placeQueued = false;
 function placeCmd() {
+  placeQueued = false;
   const typing = document.activeElement === $('#cmdInput');
   const vvBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
   document.documentElement.style.setProperty('--vv-bottom', `${Math.round(vvBottom)}px`);
-  document.body.classList.toggle('kb-open', typing && window.innerHeight - vvBottom > 80);
+  document.body.classList.toggle('kb-open', typing && window.innerHeight - (vv ? vv.height : window.innerHeight) > 80);
 }
+const queuePlace = () => { if (!placeQueued) { placeQueued = true; requestAnimationFrame(placeCmd); } };
 placeCmd();
-window.addEventListener('resize', placeCmd);
-if (vv) { vv.addEventListener('resize', placeCmd); vv.addEventListener('scroll', placeCmd); }
-// คีย์บอร์ดดันหน้าขึ้นแล้วไม่เลื่อนกลับ → ดึงกลับที่เดิม
-$('#cmdInput').addEventListener('focus', () => setTimeout(() => { window.scrollTo(0, 0); placeCmd(); }, 320));
-$('#cmdInput').addEventListener('blur', () => setTimeout(() => { window.scrollTo(0, 0); placeCmd(); }, 60));
+window.addEventListener('resize', queuePlace);
+if (vv) { vv.addEventListener('resize', queuePlace); vv.addEventListener('scroll', queuePlace); }
+// iOS เลื่อนทั้งหน้าตอนแตะช่องพิมพ์ (ช่องเด้งไปกลางจอ) → ดึงหน้ากลับที่เดิมทันทีที่มันเลื่อน
+window.addEventListener('scroll', () => { if (window.scrollY !== 0) window.scrollTo(0, 0); queuePlace(); }, { passive: true });
+$('#cmdInput').addEventListener('focus', () => { window.scrollTo(0, 0); queuePlace(); setTimeout(queuePlace, 350); });
+$('#cmdInput').addEventListener('blur', () => { window.scrollTo(0, 0); setTimeout(queuePlace, 60); });
 let answerTimer = null;
 function showAnswer(say, sub) {
   const el = $('#answer');
@@ -801,7 +872,8 @@ $('#headline').addEventListener('click', () => {
   if (voiceMode === 'device') setTimeout(() => { if (!$('#speakBtn').classList.contains('on')) { fromBrief = true; $('#speakBtn').click(); } }, 350);
 });
 $('#reportBack').addEventListener('click', () => closeReport());
-$('#syncSkip').addEventListener('click', hideSync);
+// แตะตรงไหนก็ได้บนหน้า welcome = ข้าม (ยกเว้นการ์ดตั้งค่าของแอปที่ยังไม่เชื่อม)
+$('#sync').addEventListener('click', (e) => { if (!e.target.closest('#syncIssues a')) hideSync(); });
 document.addEventListener('click', (e) => {
   if (e.target.closest('[data-report]')) openReport();
   // กาง/หุบรายการย่อยของแจ้งเตือนที่รวมหลายงวด
@@ -842,7 +914,11 @@ function renderSettings() {
   $('#connLabel').textContent = S.connLabel;
   $('#alertLabel').textContent = S.alertLabel;
   $('#voiceLabel').textContent = S.voiceLabel;
-  $('#setFoot').textContent = S.foot;
+  // เวลาโหลดล่าสุดของแต่ละอย่าง (ดูความเร็วจริงบน iPhone)
+  const lastOf = new Map();
+  for (const p of perf) lastOf.set(p.tag, p);
+  const perfText = [...lastOf.values()].filter((p) => !/POST/.test(p.tag)).map((p) => `${p.tag} ${(p.ms / 1000).toFixed(1)}s${p.ok ? '' : '✕'}`).join(' · ');
+  $('#setFoot').textContent = perfText ? `${S.foot}\nโหลดล่าสุด: ${perfText}` : S.foot;
 
   const cur = T.choice();
   const tile = (id, t, label) => `<button type="button" role="radio" data-theme-id="${id}" aria-checked="${id === cur}">
@@ -1030,14 +1106,21 @@ document.addEventListener('click', (e) => {
   const name = card.querySelector('.app-name');
   if (name) name.style.viewTransitionName = 'app-title';
 }, true);
-// โหลดหน้าแอปเก็บไว้ล่วงหน้า กดแล้วเปิดได้ทันที
-for (const a of APPS) {
-  for (const href of [a.path, `${a.path}styles.css`, `${a.path}app.js`]) {
-    const l = document.createElement('link');
-    l.rel = 'prefetch';
-    l.href = href;
-    document.head.appendChild(l);
-  }
+// โหลดหน้าแอปเก็บไว้ล่วงหน้า กดแล้วเปิดได้ทันที · ทำหลังซิงก์เสร็จ ไม่แย่งเน็ตตอนเปิดแอป
+let prefetched = false;
+function prefetchApps() {
+  if (prefetched) return;
+  prefetched = true;
+  setTimeout(() => {
+    for (const a of APPS) {
+      for (const href of [a.path, `${a.path}styles.css`, `${a.path}app.js`]) {
+        const l = document.createElement('link');
+        l.rel = 'prefetch';
+        l.href = href;
+        document.head.appendChild(l);
+      }
+    }
+  }, 800);
 }
 
 /* ---------- สรุปตอนเช้าอัตโนมัติ ---------- */
@@ -1057,13 +1140,14 @@ function morningBrief() {
     // iPhone อาจไม่ยอมให้เล่นเสียงเองโดยไม่ได้แตะ ถ้าไม่ได้ก็แสดงสรุปอย่างเดียว (โหมด Siri ไม่สลับแอปเอง)
     if (voiceMode === 'device') setTimeout(() => { fromBrief = true; $('#speakBtn').click(); }, 700);
   };
-  setTimeout(go, $('#sync').hidden ? 300 : 1900);
+  // รอหน้า welcome ปิดก่อน แล้วค่อยเปิดหน้าสรุป
+  const wait = () => ($('#sync').hidden ? setTimeout(go, 300) : setTimeout(wait, 200));
+  wait();
 }
 
 /* ---------- ตัวละครมีอารมณ์ (alpha-face.js) ---------- */
 // หน้าแรก + avatar หน้าสรุป เปลี่ยนอารมณ์ตามสรุป · หน้าซิงก์ = ท่าทำงาน
 const faces = [mountFace($('#alpha .char')), mountFace($('#rpAvatar .char'))];
-mountFace($('#sync .char')).setEmotion('work');
 let curEmotion = null;
 function setEmotion(e) {
   if (e === curEmotion) return;
@@ -1077,12 +1161,12 @@ function setEmotion(e) {
 $('#orbBtn').setAttribute('aria-label', M.alphaLabel);
 $('#headline').setAttribute('aria-label', M.headlineHint);
 $('#cmdInput').placeholder = M.input.placeholder;
-$('#sync h2').textContent = M.sync.title;
 $('#syncSkip').textContent = M.sync.skip;
 renderHome();
 if (location.hash === '#report') openReport({ push: false });
 else if (location.hash === '#settings') openSettings();
-else if (!session.get(SYNC_SEEN)) showSync();
+else if (needWelcome()) showSync();
+document.documentElement.classList.remove('welcome'); // ส่งต่อจากสคริปต์ใน <head> ให้ hub คุมเอง
 refresh();
 renderPending();
 flushLogQueue();

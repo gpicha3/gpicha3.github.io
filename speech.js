@@ -134,9 +134,16 @@ export function compose({ fin, fuel, settings, links = {}, failed = {}, allFaile
     if (noLog >= 2 && add('unsure', 'uncertain-no-log', { days: noLog }, links.food)) emotions.push('unsure');
   }
 
-  // 2) ค่างวด (งวดที่ใกล้สุด) + งวดสุดท้าย
+  // 2) ยอดเตรียมวันเงินเข้า (ttb + บิลบัตร จาก Fix cost) แทนค่างวดของวันเดียวกัน · ไม่มีบิลบัตร = พูดค่างวดแบบเดิม
+  const prep = fin?.payday;
+  const usePrep = prep && !prep.fallback && prep.total > 0 && prep.days >= 0 && prep.days <= 14;
+  if (usePrep) {
+    const vars = { prepTotal: prep.total, ttb: prep.ttb, cc: prep.cc, prepDays: prep.days };
+    add('install', prep.days === 0 ? 'payday-prep-today' : prep.days === 1 ? 'payday-prep-tomorrow' : 'payday-prep-days', vars, links.install);
+  }
+  // ค่างวด (งวดที่ใกล้สุด) + งวดสุดท้าย
   const inst = fin?.installments?.[0];
-  if (inst) {
+  if (inst && !(usePrep && inst.days === prep.days)) {
     const vars = { installCount: inst.count, installTotal: inst.total };
     if (inst.days === 0) add('install', 'install-today', vars, links.install);
     else if (inst.days === 1) add('install', 'install-tomorrow', vars, links.install);

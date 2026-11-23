@@ -16,7 +16,27 @@
   <link rel="icon" href="/icons/icon-192.png" type="image/png">
   <link rel="stylesheet" href="/styles.css">
   <script src="/alpha-theme.js"></script>
+  <!-- หน้า welcome ต้องขึ้นตั้งแต่เฟรมแรก (ไม่เห็นหน้าแรกแวบก่อน): ครั้งแรกของวัน หรือยังไม่มีข้อมูลที่จำไว้ -->
+  <script>try { var wd = JSON.parse(localStorage.getItem('hub.welcomeDay') || '""'); if (!/summary/.test(localStorage.getItem('hub.cache.v1') || '') || wd !== new Date().toDateString()) document.documentElement.classList.add('welcome'); } catch (e) { /* ไม่มี storage = ไม่โชว์ */ }</script>
   <link rel="preload" href="/assets/alpha-character.png" as="image">
+  <!-- โหลดทุกไฟล์ที่ hub ต้องใช้พร้อมกันตั้งแต่ต้น (ไม่ต้องรอทีละชั้น) -->
+  <link rel="modulepreload" href="/hub.js">
+  <link rel="modulepreload" href="/config.js">
+  <link rel="modulepreload" href="/commands.js">
+  <link rel="modulepreload" href="/messages.js">
+  <link rel="modulepreload" href="/speech.js">
+  <link rel="modulepreload" href="/alpha-face.js">
+  <link rel="modulepreload" href="/log/parse.js">
+  <link rel="modulepreload" href="/log/categories.js">
+  <link rel="modulepreload" href="/log/card.js">
+  <link rel="modulepreload" href="/log/sheet.js">
+  <link rel="modulepreload" href="/finance-app/summary.js">
+  <link rel="modulepreload" href="/finance-app/calc.js">
+  <link rel="modulepreload" href="/finance-app/api.js">
+  <link rel="modulepreload" href="/fuel-logger/summary.js">
+  <link rel="modulepreload" href="/fuel-logger/core.js">
+  <link rel="preload" href="/messages/th.json" as="fetch" crossorigin>
+  <link rel="preload" href="/data/categoryWords.th.json" as="fetch" crossorigin>
 </head>
 <body>
   <div class="aurora" aria-hidden="true"></div>
@@ -61,15 +81,24 @@
     </button>
   </form>
 
-  <!-- หน้าซิงก์ตอนเปิดแอป -->
-  <section class="overlay sync" id="sync" aria-label="กำลังซิงก์" hidden>
-    <div class="hud-top mono"><span class="live warn"><i></i><b>ALPHA · SYNCING</b></span><span id="syncCount"></span></div>
-    <span class="alpha alpha-xl spinning" aria-hidden="true"><i class="glow-orb"></i><i class="ring r1"></i><span class="char"><img src="/assets/alpha-character.png" alt="" draggable="false"><i class="shirt"></i></span><i class="ring r2"></i><i class="spark s1"></i><i class="spark s2"></i></span>
-    <h2>กำลังเชื่อมต่อข้อมูล…</h2>
-    <p id="syncSub">ดึงข้อมูลล่าสุดจากทุกแอป</p>
-    <div class="glass mono sync-log" id="syncLog"></div>
-    <div id="syncIssues"></div>
-    <button type="button" class="skip" id="syncSkip">ข้าม ›</button>
+  <!-- หน้า welcome (HUD): ครั้งแรกของวัน หรือตอนไม่มี cache · แตะเพื่อข้าม -->
+  <section class="sync" id="sync" aria-label="กำลังเชื่อมต่อ" hidden>
+    <svg class="hud-grid" aria-hidden="true" width="100%" height="100%"><defs><pattern id="hudGrid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0V24" fill="none" stroke="currentColor" stroke-width=".5"/></pattern></defs><rect width="100%" height="100%" fill="url(#hudGrid)"/></svg>
+    <div class="hud-scan" aria-hidden="true"></div>
+    <div class="hud-body">
+      <div class="hud-ring" aria-hidden="true">
+        <svg class="spin" viewBox="0 0 200 200"><circle cx="100" cy="100" r="94" fill="none" stroke="#9a6cff" stroke-width="2" stroke-dasharray="60 14 6 14"/></svg>
+        <svg class="spin rev" viewBox="0 0 200 200"><circle cx="100" cy="100" r="80" fill="none" stroke="#d9b8ff" stroke-width="5" stroke-dasharray="2 6" opacity=".7"/></svg>
+        <svg class="spin fast" viewBox="0 0 200 200"><circle cx="100" cy="100" r="66" fill="none" stroke="#f3e8ff" stroke-width="2.5" stroke-dasharray="90 325" stroke-linecap="round"/></svg>
+        <svg viewBox="0 0 200 200"><g stroke="#9a6cff" stroke-width="2"><line x1="100" y1="2" x2="100" y2="12"/><line x1="198" y1="100" x2="188" y2="100"/><line x1="100" y1="198" x2="100" y2="188"/><line x1="2" y1="100" x2="12" y2="100"/></g></svg>
+        <span class="hud-core mono">ALPHA</span>
+      </div>
+      <div class="hud-bar"><i id="syncBar"></i></div>
+      <div class="hud-log mono" id="syncLog"></div>
+      <div class="hud-welcome" id="syncWelcome" aria-live="polite"></div>
+      <div id="syncIssues"></div>
+    </div>
+    <button type="button" class="hud-skip mono" id="syncSkip">แตะเพื่อข้าม</button>
   </section>
 
   <!-- หน้ารายงาน -->

@@ -30,6 +30,9 @@
 
 | key | สถานการณ์ | ตัวแปร |
 |---|---|---|
+| `payday-prep-days` | ยอดเตรียมวันเงินเข้า (ttb + บิลบัตร) อีก 2–14 วัน · ใช้แทนค่างวดวันเดียวกัน | prepDays, prepTotal, ttb, cc |
+| `payday-prep-tomorrow` | ยอดเตรียมวันเงินเข้า พรุ่งนี้ | prepTotal, ttb, cc |
+| `payday-prep-today` | ยอดเตรียมวันเงินเข้า วันนี้ | prepTotal, ttb, cc |
 | `install-days` | อีก 2–14 วัน | installDays, installCount, installTotal |
 | `install-tomorrow` | พรุ่งนี้ | installCount, installTotal |
 | `install-today` | วันนี้ | installCount, installTotal |
