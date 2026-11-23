@@ -24,7 +24,7 @@
 | `styles.css` | ธีมออโรร่า ม่วง-ชมพู รองรับ safe-area |
 | `templates/summary.template.js` | template สำหรับ summary.js ของแอปใหม่ |
 
-localStorage ที่ Alpha ใช้: `hub.cache.v1` (ผลสรุปล่าสุด) · `hub.tease` / `hub.listens` (แซว) · `alpha.logWrite` / `alpha.logQueue` / `alpha.logHistory` / `alpha.learnedCategory` (จดรายรับรายจ่าย) · `hub.voice` (โหมดเสียง) · `hub.speech.v1` (ประโยคที่ใช้ล่าสุดของแต่ละ key) · `alpha.settings` (ตั้งค่า) · `hub.welcomeDay` (วันที่แสดงหน้า welcome ล่าสุด) · `hub.perf` (เวลาโหลด 30 ครั้งล่าสุด แสดงท้ายหน้าตั้งค่า) ·
+localStorage ที่ Alpha ใช้: `hub.cache.v1` (ผลสรุปล่าสุด) · `hub.tease` / `hub.listens` (แซว) · `alpha.logWrite` / `alpha.logQueue` / `alpha.logHistory` / `alpha.learnedCategory` (จดรายรับรายจ่าย) · `hub.voice` (โหมดเสียง) · `hub.speech.v1` (ประโยคที่ใช้ล่าสุดของแต่ละ key) · `alpha.settings` (ตั้งค่า) · sessionStorage `hub.session` (มี = แอปเปิดค้างอยู่ ไม่โชว์หน้า welcome ซ้ำ) · `hub.perf` (เวลาโหลด 30 ครั้งล่าสุด แสดงท้ายหน้าตั้งค่า) ·
 `alpha.theme` (ธีมสี — fuel-logger/finance-app อ่าน key นี้ใน theme.js ของตัวเองด้วย ดูตาราง apps ใน `alpha-theme.js`)
 
 ไฟล์อื่น: `alpha-theme.js` (ธีม 6 ชุด โหลดใน head) · `assets/alpha-character.png` (ตัวละคร ห้ามแก้หน้า/ผม) ·
@@ -44,7 +44,7 @@ localStorage ที่ Alpha ใช้: `hub.cache.v1` (ผลสรุปล่
      แอปใหม่ที่อยากมีประโยคพูด: เพิ่ม key ใน `messages/th.json` + ส่วนเลือก key ใน `speech.js` → `compose()` และใส่ id ใน `SPEECH_APPS` (hub.js)
      แอปที่ไม่มี facts: hub อ่าน `alerts[].text` ต่อท้ายเป็น "เรื่องอื่นๆ"
    - ช่องเสริมของ alert: `items: [{text, link}]` = รายการย่อย (Alpha แสดงบรรทัดเดียว กดแล้วกาง) ·
-     `kind: "payday", lines: [{label, amount}], total, note?` = ยอดเตรียมวันเงินเข้า (Alpha แสดงทุกบรรทัด + ยอดรวม ไม่ต้องกาง) ·
+     `kind: "payday", lines: [{label, amount, items?: [{label, amount}]}], total, note?` = ยอดเตรียมวันเงินเข้า (Alpha แสดงทุกบรรทัด + ยอดรวม · บรรทัดที่มี items แตะกางได้) ·
      `kind: "pace", amount` = Alpha ซ่อนถ้า amount < เกณฑ์ในหน้าตั้งค่า (`alpha.settings.paceMin`, ค่าเริ่มต้น 100)
    - เรื่องเงิน/งวดผ่อนทั้งหมดมาจาก finance-app ที่เดียว (fuel-logger ส่งเฉพาะเรื่องรถ)
    - ใช้สูตรตัวเดียวกับแอป ห้ามเขียนซ้ำ ถ้าสูตรปนอยู่กับโค้ดหน้าจอ ให้แยกเป็นไฟล์ที่ไม่แตะ DOM (เช่น `core.js`) แล้วให้ทั้งแอปและ summary.js ใช้ร่วมกัน

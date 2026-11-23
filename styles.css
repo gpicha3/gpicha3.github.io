@@ -495,9 +495,17 @@ button.rp-line { font: inherit; color: inherit; }
 
 /* ---------- ยอดเตรียมวันเงินเข้า (ttb / บิลบัตร / รวม) ---------- */
 .al-text .prep { display: block; margin: 6px 0 2px; font-size: 13px; font-variant-numeric: tabular-nums; }
-.al-text .prep > span { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; }
+.al-text .prep .prep-row, .al-text .prep .sum { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; width: 100%; text-align: left; }
+.al-text .prep button.prep-row i::after { content: '›'; display: inline-block; margin-left: 6px; transition: transform .2s var(--ease); }
+.al-text .prep button.prep-row[aria-expanded="true"] i::after { transform: rotate(90deg); }
+.al-text .prep-sub { display: block; margin: 2px 0 4px 2px; padding-left: 10px; border-left: 2px solid color-mix(in srgb, var(--vi) 40%, transparent); font-size: 12.5px; }
+.al-text .prep-sub span { display: flex; justify-content: space-between; gap: 12px; padding: 1px 0; }
+.al-text .prep-sub b { font-weight: 500; }
+.prep-card .chev { display: none; }
 .al-text .prep i { font-style: normal; color: var(--lav); }
 .al-text .prep b { font-weight: 600; white-space: nowrap; }
 .al-text .prep .sum { margin-top: 3px; padding-top: 5px; border-top: 1px solid var(--line); }
 .al-text .prep .sum b { font-size: 15px; }
 .al-text .prep em { display: block; font-style: normal; font-size: 12px; color: var(--or); }
+/* กางบิลบัตรอยู่: ซ่อนแจ้งเตือนแถวอื่นชั่วคราว ให้การ์ดแอปด้านล่างยังอยู่ในจอ (หน้าแรกไม่เลื่อน) */
+.al-card:has([data-prep-toggle][aria-expanded="true"]) :is(.al-row, .al-sub, .al-more) { display: none; }

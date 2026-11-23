@@ -22,7 +22,7 @@ const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const CACHE_KEY = 'hub.cache.v1';     // ผลสรุปล่าสุดของแต่ละแอป (เปิดแล้วเห็นทันที)
-const WELCOME_DAY = 'hub.welcomeDay'; // วันที่แสดงหน้า welcome ล่าสุด (แสดงครั้งแรกของวัน หรือตอนไม่มี cache)
+const WELCOME_SESSION = 'hub.session'; // sessionStorage: มีแล้ว = แอปเปิดค้างอยู่ (กลับจากแอปลูก/พื้นหลัง) · ไม่มี = เพิ่งเปิดแอปใหม่ (cold start)
 const PERF_KEY = 'hub.perf';          // เวลาโหลดล่าสุด 30 ครั้ง (ทุก request ไป Apps Script + สรุปของแต่ละแอป)
 const TIMEOUT = 8000;                 // แอปไหนช้ากว่านี้ ใช้ข้อมูลล่าสุดไปก่อน
 const WELCOME_MAX = 2200;             // หน้า welcome ยาวสุด (มี cache) · ไม่มี cache เลยรอได้ถึง TIMEOUT
@@ -35,6 +35,10 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage unavailable */ } },
 };
 /* ---------- จับเวลา: ทุก request ไป Apps Script + สรุปของแต่ละแอป (console + หน้าตั้งค่า) ---------- */
+const session = {
+  get(k) { try { return sessionStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { sessionStorage.setItem(k, v); } catch { /* ignore */ } },
+};
 const perf = store.get(PERF_KEY, []);
 function logPerf(tag, ms, ok = true) {
   const entry = { tag, ms: Math.round(ms), ok, at: Date.now() };
@@ -132,7 +136,9 @@ function renderHome() {
     // ยอดเตรียมวันเงินเข้า (Finance): แสดงแยก ttb / บิลบัตร + ยอดรวม ไม่ต้องกาง
     if (first.kind === 'payday' && first.lines?.length) first.items = null;
     // รายการที่รวมหลายงวด (items) แตะแล้วกางรายการย่อย แทนการเปิดลิงก์
-    const tag = (a, cls, inner) => (a.items?.length
+    const tag = (a, cls, inner) => (a.kind === 'payday' && a.lines?.length && cls === 'al-main'
+      ? `<div class="${cls} prep-card">${inner}</div>`
+      : a.items?.length
       ? `<button type="button" class="${cls}" data-toggle aria-expanded="false">${inner}</button>${subList(a)}`
       : `<a class="${cls}" href="${esc(a.link || a.app.path)}">${inner}</a>`);
     $('#alerts').innerHTML = `<div class="glass al-card">
@@ -151,9 +157,14 @@ function renderHome() {
 // ตัวเลขกับหน่วยไม่แยกบรรทัด เช่น "อีก 2 วัน" ไม่ขาดเป็น "อีก 2 / วัน"
 const keep = (t) => esc(t).replace(/ (\d[\d,.]*) (วัน|กม\.|บาท|รายการ)/g, '&nbsp;$1&nbsp;$2');
 const exact = (n) => (Number.isInteger(n) ? n.toLocaleString('en-US') : Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+// บรรทัดที่มีรายการย่อย (บิลบัตรเครดิต) แตะแล้วกางดูแต่ละรายการ
 function prepLines(a) {
   if (a.kind !== 'payday' || !a.lines?.length) return '';
-  return `<span class="prep">${a.lines.map((l) => `<span><i>${esc(l.label)}</i><b>${exact(l.amount)}</b></span>`).join('')}
+  const row = (l) => (l.items?.length
+    ? `<button type="button" class="prep-row" data-prep-toggle aria-expanded="false"><i>${esc(l.label)}</i><b>${exact(l.amount)}</b></button>
+      <span class="prep-sub" hidden>${l.items.map((it) => `<span><i>${esc(it.label)}</i><b>${exact(it.amount)}</b></span>`).join('')}</span>`
+    : `<span class="prep-row"><i>${esc(l.label)}</i><b>${exact(l.amount)}</b></span>`);
+  return `<span class="prep">${a.lines.map(row).join('')}
     ${a.lines.length > 1 ? `<span class="sum"><i>รวมที่ต้องเตรียม</i><b>${exact(a.total)}</b></span>` : ''}
     ${a.note ? `<em>${esc(a.note)}</em>` : ''}</span>`;
 }
@@ -203,10 +214,12 @@ function offlineCard(a, title, sub) {
 
 /* ---------- หน้า welcome (HUD) ---------- */
 // บรรทัดบูตติ๊กตามการโหลดจริงของแต่ละแอป: CONNECTING X ··· → X CONNECTED ✓ (หรือ OFFLINE / NOT SET)
-// แสดงครั้งแรกของวัน หรือตอนไม่มี cache · แตะที่ไหนก็ข้าม · ยาวสุด WELCOME_MAX
+// มีข้อมูลที่จำไว้แล้ว = ติ๊ก "X LOADED ✓" ทันทีที่อ่านข้อมูลนั้นได้ (ห่างกันทีละนิด) แล้วซิงก์จริงต่อเบื้องหลัง
+// แสดงทุกครั้งที่เปิดแอปใหม่ (cold start) · สลับแอป/กลับจากแอปลูกไม่แสดง · แตะที่ไหนก็ข้าม · ยาวสุด WELCOME_MAX
 const syncApps = () => APPS.filter((a) => a.summary);
 const upName = (a) => a.name.toUpperCase();
 let welcomeTimer = null;
+const cacheTick = {}; // แอปที่ติ๊กจากข้อมูลที่จำไว้แล้ว (ระหว่างรอข้อมูลใหม่)
 function renderSync() {
   const list = syncApps();
   const log = $('#syncLog');
@@ -218,14 +231,15 @@ function renderSync() {
   for (const a of list) {
     const row = log.querySelector(`[data-app="${a.id}"]`);
     const r = results[a.id];
-    const [lbl, st, cls] = r.status === 'loading' ? [`CONNECTING ${upName(a)}`, '···', 'wait']
+    const [lbl, st, cls] = r.status === 'loading' && cacheTick[a.id] && r.summary ? [`${upName(a)} LOADED`, '✓', 'ok']
+      : r.status === 'loading' ? [`CONNECTING ${upName(a)}`, '···', 'wait']
       : r.status === 'ok' ? [`${upName(a)} CONNECTED`, '✓', 'ok']
         : r.status === 'setup' ? [`${upName(a)} NOT SET`, '✕', 'bad']
           : [`${upName(a)} ${r.summary ? 'LAST DATA' : 'OFFLINE'}`, r.summary ? '!' : '✕', r.summary ? 'warn' : 'bad'];
     row.querySelector('.lbl').textContent = lbl;
     const stEl = row.querySelector('.st');
     stEl.textContent = st; stEl.className = `st ${cls}`;
-    if (r.status !== 'loading') done += 1;
+    if (r.status !== 'loading' || (cacheTick[a.id] && r.summary)) done += 1;
   }
   $('#syncBar').style.width = `${Math.round(((1 + done) / (1 + list.length)) * 100)}%`;
   const all = done === list.length;
@@ -243,10 +257,11 @@ function showSync() {
   el.hidden = false;
   el.classList.remove('closing');
   $('#syncLog').innerHTML = '';
-  store.set(WELCOME_DAY, new Date().toDateString());
+  session.set(WELCOME_SESSION, '1');
   renderSync();
-  // มี cache = ไม่ต้องรอนาน (หน้าแรกแสดงข้อมูลล่าสุดได้เลย) · ไม่มีเลย = รอได้ถึง TIMEOUT
+  // มี cache = ติ๊กจากข้อมูลที่จำไว้ทีละบรรทัดเร็วๆ (หน้าแรกแสดงข้อมูลล่าสุดได้เลย) · ไม่มีเลย = รอข้อมูลจริงได้ถึง TIMEOUT
   const hasCache = Object.values(results).some((r) => r.summary);
+  if (hasCache) syncApps().forEach((a, i) => setTimeout(() => { cacheTick[a.id] = true; if (!$('#sync').hidden) renderSync(); }, (reduceMotion ? 0 : 250) + i * 150));
   clearTimeout(welcomeTimer);
   welcomeTimer = setTimeout(hideSync, hasCache ? WELCOME_MAX : TIMEOUT + 500);
 }
@@ -258,7 +273,7 @@ function hideSync() {
   el.classList.add('closing');
   setTimeout(() => { el.hidden = true; el.classList.remove('closing'); }, reduceMotion ? 0 : 400);
 }
-const needWelcome = () => !Object.values(results).some((r) => r.summary) || store.get(WELCOME_DAY, '') !== new Date().toDateString();
+const needWelcome = () => !session.get(WELCOME_SESSION);
 
 /* ---------- โหลดสรุปจากทุกแอป (ขนาน) ---------- */
 const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
@@ -882,6 +897,14 @@ $('#sync').addEventListener('click', (e) => { if (!e.target.closest('#syncIssues
 document.addEventListener('click', (e) => {
   if (e.target.closest('[data-report]')) openReport();
   // กาง/หุบรายการย่อยของแจ้งเตือนที่รวมหลายงวด
+  const pt = e.target.closest('[data-prep-toggle]');
+  if (pt) {
+    const open = pt.getAttribute('aria-expanded') !== 'true';
+    pt.setAttribute('aria-expanded', String(open));
+    pt.nextElementSibling.hidden = !open;
+    fitHome();
+    return;
+  }
   const t = e.target.closest('[data-toggle]');
   if (t) {
     const sub = t.nextElementSibling;

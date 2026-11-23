@@ -16,8 +16,9 @@
   <link rel="icon" href="/icons/icon-192.png" type="image/png">
   <link rel="stylesheet" href="/styles.css">
   <script src="/alpha-theme.js"></script>
-  <!-- หน้า welcome ต้องขึ้นตั้งแต่เฟรมแรก (ไม่เห็นหน้าแรกแวบก่อน): ครั้งแรกของวัน หรือยังไม่มีข้อมูลที่จำไว้ -->
-  <script>try { var wd = JSON.parse(localStorage.getItem('hub.welcomeDay') || '""'); if (!/summary/.test(localStorage.getItem('hub.cache.v1') || '') || wd !== new Date().toDateString()) document.documentElement.classList.add('welcome'); } catch (e) { /* ไม่มี storage = ไม่โชว์ */ }</script>
+  <!-- หน้า welcome ต้องขึ้นตั้งแต่เฟรมแรก (ไม่เห็นหน้าแรกแวบก่อน): ทุกครั้งที่เปิดแอปใหม่ (sessionStorage ว่าง)
+       กลับจากแอปลูกในหน้าต่างเดิม / สลับแอปแล้วกลับมา = session เดิม ไม่โชว์ · #report / #settings ไม่โชว์ -->
+  <script>try { if (!sessionStorage.getItem('hub.session') && !/^#(report|settings)$/.test(location.hash)) document.documentElement.classList.add('welcome'); } catch (e) { /* ไม่มี storage = ไม่โชว์ */ }</script>
   <link rel="preload" href="/assets/alpha-character.png" as="image">
   <!-- โหลดทุกไฟล์ที่ hub ต้องใช้พร้อมกันตั้งแต่ต้น (ไม่ต้องรอทีละชั้น) -->
   <link rel="modulepreload" href="/hub.js">
