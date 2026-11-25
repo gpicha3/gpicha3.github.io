@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#07040f">
+<title>แชต · Alpha</title>
+<script src="/alpha-theme.js"></script>
+<!--
+  แชตกับน้องอัล (บอทบน PC) ฝังผ่าน iframe
+  - หน้าแชตตัวจริงอยู่ที่ repo alpha (app/) เสิร์ฟผ่าน Tailscale https บน PC → ต่อได้เฉพาะเครื่องที่อยู่ใน tailnet ของบอส
+  - ที่อยู่แชตเก็บในเครื่องนี้ (localStorage "chat.url") ไม่ฝังในโค้ด เพราะ repo นี้เปิดสาธารณะ
+  - PC ปิด / มือถือไม่ได้ต่อ Tailscale → ขึ้น "ออฟไลน์" หน้าอื่นของ hub ไม่กระทบ
+-->
+<style>
+  :root{--bg:var(--bg-dark,#07040f);--ink:var(--ink-dark,#f4efff);--dim:var(--dim-dark,#9a8fb8);--line:rgba(255,255,255,.12)}
+  *{box-sizing:border-box;margin:0}
+  html,body{height:100%;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,"SF Pro Text","Sukhumvit Set","Noto Sans Thai",system-ui,sans-serif}
+  body{display:flex;flex-direction:column;height:100dvh;overflow:hidden}
+  .bar{display:flex;align-items:center;gap:10px;padding:calc(env(safe-area-inset-top) + 6px) 12px 6px;border-bottom:1px solid var(--line);flex:none}
+  .bar a,.bar button{color:var(--vi,#b48cff);text-decoration:none;background:none;border:0;font:inherit;font-size:14px;padding:6px 4px;cursor:pointer}
+  .bar h1{flex:1;font-size:16px;font-weight:600}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--dim);margin-right:6px;vertical-align:1px}
+  .dot.on{background:#3ddc84}.dot.off{background:#ff5c7a}
+  main{flex:1;position:relative;min-height:0}
+  iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(--bg)}
+  .panel{position:absolute;inset:0;display:grid;place-content:center;gap:12px;padding:24px;text-align:center;color:var(--dim)}
+  .panel b{color:var(--ink);font-size:17px}
+  .panel input{width:min(420px,86vw);font:inherit;font-size:16px;color:var(--ink);background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+  .panel button{font:inherit;font-weight:600;color:#fff;background:var(--vi,#b48cff);border:0;border-radius:12px;padding:10px 18px;cursor:pointer;justify-self:center}
+  .panel small{font-size:12px;line-height:1.5;max-width:420px}
+  [hidden]{display:none!important}
+</style>
+</head>
+<body>
+<header class="bar">
+  <a href="/" aria-label="กลับ Hub">‹ Hub</a>
+  <h1><span class="dot" id="dot"></span>น้องอัล</h1>
+  <button id="setBtn">ตั้งค่า</button>
+</header>
+<main>
+  <iframe id="frame" title="แชตน้องอัล" allow="clipboard-write" hidden></iframe>
+  <div class="panel" id="msg"><b>กำลังเชื่อมต่อ…</b></div>
+  <form class="panel" id="setup" hidden>
+    <b>ที่อยู่หน้าแชต</b>
+    <input id="url" type="url" inputmode="url" placeholder="https://ชื่อเครื่อง.xxxx.ts.net/app/" required>
+    <small>ดูจาก Tailscale บน PC · ต้องเป็น https และลงท้ายด้วย /app/ · เก็บไว้ในเครื่องนี้เท่านั้น</small>
+    <button>บันทึก</button>
+  </form>
+</main>
+<script>
+(() => {
+  const KEY = 'chat.url';
+  const $ = id => document.getElementById(id);
+  const get = () => { try { return localStorage.getItem(KEY) || ''; } catch (e) { return ''; } };
+  let state = '';
+
+  function show(which, text) {
+    $('frame').hidden = which !== 'frame';
+    $('setup').hidden = which !== 'setup';
+    $('msg').hidden = which !== 'msg';
+    if (text) $('msg').innerHTML = text;
+  }
+  // reachable? a no-cors request to a tiny file: resolves when the PC answers, rejects when offline / not on the tailnet
+  async function online(url) {
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 4000);
+    try { await fetch(new URL('icon.svg', url) + '?t=' + Date.now(), { mode: 'no-cors', cache: 'no-store', signal: ctl.signal }); return true; }
+    catch (e) { return false; } finally { clearTimeout(t); }
+  }
+  async function connect() {
+    const url = get();
+    if (!url) { state = 'setup'; $('dot').className = 'dot'; show('setup'); $('url').focus(); return; }
+    if (state === 'frame') return;
+    show('msg', '<b>กำลังเชื่อมต่อ…</b>');
+    if (await online(url)) {
+      state = 'frame'; $('dot').className = 'dot on';
+      if ($('frame').src !== url) $('frame').src = url;
+      show('frame');
+    } else {
+      state = 'off'; $('dot').className = 'dot off';
+      show('msg', '<b>แชตออฟไลน์</b><small>PC ปิดอยู่ หรือเครื่องนี้ไม่ได้ต่อ Tailscale<br>ส่วนอื่นของ Hub ใช้ได้ตามปกติ</small><button id="retry">ลองใหม่</button>');
+      $('retry').onclick = connect;
+    }
+  }
+  $('setup').addEventListener('submit', e => {
+    e.preventDefault();
+    let v = $('url').value.trim();
+    if (!/^https:\/\//.test(v)) { alert('ต้องขึ้นต้นด้วย https://'); return; }
+    if (!v.endsWith('/')) v += '/';
+    try { localStorage.setItem(KEY, v); } catch (err) {}
+    state = ''; $('frame').removeAttribute('src'); connect();
+  });
+  $('setBtn').addEventListener('click', () => { $('url').value = get(); state = 'setup'; show('setup'); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && state === 'off') connect(); });
+  connect();
+})();
+</script>
+</body>
+</html>

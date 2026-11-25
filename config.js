@@ -37,4 +37,14 @@ export default [
     setupLink: '/#settings',
     keywords: ['finance', 'การเงิน', 'เงิน'],
   },
+  {
+    // หน้าแชตตัวจริงอยู่บน PC (repo alpha → app/) ผ่าน Tailscale · /chat/ ฝังด้วย iframe + ขึ้น "ออฟไลน์" ถ้า PC ปิด
+    id: 'chat',
+    name: 'แชต',
+    desc: 'คุยกับน้องอัลบน PC',
+    path: '/chat/',
+    icon: '/chat/icon-192.png',
+    color: '#ff7ab6',
+    keywords: ['chat', 'แชต', 'คุย', 'น้องอัล'],
+  },
 ];
