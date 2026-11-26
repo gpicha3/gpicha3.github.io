@@ -55,19 +55,36 @@
 </main>
 <script>
 (() => {
-  // iPhone home-screen app: the page can come up shorter than the screen (status-bar bug), leaving an empty band
-  // under the chat. Size the page to the real screen height instead (portrait/landscape aware).
+  // Page size on iPhone:
+  // - home-screen app: the page can come up shorter than the screen (status-bar bug) → use the real screen height
+  // - keyboard up: iOS doesn't tell the chat inside the iframe, so this page follows the visible area
+  //   (visualViewport) and the iframe shrinks to sit right above the keyboard
   const standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
-  function fitScreen() {
-    if (!standalone || !screen.height) return;
+  const vv = window.visualViewport;
+  function screenH() {
+    if (!standalone || !screen.height) return innerHeight;
     const portrait = innerHeight >= innerWidth;
-    const h = portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
-    if (h > innerHeight) { document.body.style.bottom = 'auto'; document.body.style.height = h + 'px'; }
-    else { document.body.style.bottom = ''; document.body.style.height = ''; }
+    return Math.max(innerHeight, portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height));
+  }
+  function fitScreen() {
+    const s = document.body.style;
+    const kb = vv && innerHeight - vv.height > 120;   // keyboard (or another panel) covers the bottom
+    if (kb) { s.top = vv.offsetTop + 'px'; s.bottom = 'auto'; s.height = vv.height + 'px'; }
+    else {
+      const h = screenH();
+      s.top = ''; s.bottom = h > innerHeight ? 'auto' : ''; s.height = h > innerHeight ? h + 'px' : '';
+    }
   }
   fitScreen();
   addEventListener('resize', fitScreen);
   addEventListener('orientationchange', () => setTimeout(fitScreen, 300));
+  if (vv) { vv.addEventListener('resize', fitScreen); vv.addEventListener('scroll', fitScreen); }
+  // iOS scrolls the whole page when the keyboard opens: keep it at the top (the body is fixed anyway)
+  addEventListener('scroll', () => { if (scrollY) scrollTo(0, 0); }, { passive: true });
+
+  // the chat uses the hub's light/dark (unless a mode was picked inside the chat's own settings)
+  const hubMode = () => (window.AlphaTheme && window.AlphaTheme.isDark() ? 'dark' : 'light');
+  const chatSrc = url => url + (url.includes('?') ? '&' : '?') + 'hub=' + hubMode();
 
   const KEY = 'chat.url';
   const $ = id => document.getElementById(id);
@@ -94,7 +111,7 @@
     show('msg', '<b>กำลังเชื่อมต่อ…</b>');
     if (await online(url)) {
       state = 'frame'; $('dot').className = 'dot on';
-      if ($('frame').src !== url) $('frame').src = url;
+      if ($('frame').src !== chatSrc(url)) $('frame').src = chatSrc(url);
       show('frame');
     } else {
       state = 'off'; $('dot').className = 'dot off';
