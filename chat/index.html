@@ -34,6 +34,10 @@
   .panel button{font:inherit;font-weight:600;color:#fff;background:var(--brand);border:0;border-radius:99px;padding:10px 22px;cursor:pointer;justify-self:center}
   .panel small{font-size:12px;line-height:1.5;max-width:420px}
   [hidden]{display:none!important}
+  /* แชตต่อได้แล้ว: ซ่อนแถบนี้ ให้หน้าแชตเต็มจอ (หน้าแชตมีปุ่มกลับ Hub และเผื่อแถบสถานะ iPhone เอง) */
+  body.full{position:fixed;inset:0;height:auto}
+  body.full .bar{display:none}
+  .panel .link{background:none;color:var(--brand);padding:4px 10px}
 </style>
 </head>
 <body>
@@ -63,6 +67,7 @@
     $('frame').hidden = which !== 'frame';
     $('setup').hidden = which !== 'setup';
     $('msg').hidden = which !== 'msg';
+    document.body.classList.toggle('full', which === 'frame');
     if (text) $('msg').innerHTML = text;
   }
   // reachable? a no-cors request to a tiny file: resolves when the PC answers, rejects when offline / not on the tailnet
@@ -82,8 +87,9 @@
       show('frame');
     } else {
       state = 'off'; $('dot').className = 'dot off';
-      show('msg', '<b>แชตออฟไลน์</b><small>PC ปิดอยู่ หรือเครื่องนี้ไม่ได้ต่อ Tailscale<br>ส่วนอื่นของ Hub ใช้ได้ตามปกติ</small><button id="retry">ลองใหม่</button>');
+      show('msg', '<b>แชตออฟไลน์</b><small>PC ปิดอยู่ หรือเครื่องนี้ไม่ได้ต่อ Tailscale<br>ส่วนอื่นของ Hub ใช้ได้ตามปกติ</small><button id="retry">ลองใหม่</button><button class="link" id="reset">เปลี่ยนที่อยู่หน้าแชต</button>');
       $('retry').onclick = connect;
+      $('reset').onclick = () => $('setBtn').click();
     }
   }
   $('setup').addEventListener('submit', e => {
