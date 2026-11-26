@@ -68,12 +68,13 @@
   }
   function fitScreen() {
     const s = document.body.style;
-    const kb = vv && innerHeight - vv.height > 120;   // keyboard (or another panel) covers the bottom
-    if (kb) { s.top = vv.offsetTop + 'px'; s.bottom = 'auto'; s.height = vv.height + 'px'; }
-    else {
-      const h = screenH();
-      s.top = ''; s.bottom = h > innerHeight ? 'auto' : ''; s.height = h > innerHeight ? h + 'px' : '';
-    }
+    const full = screenH();
+    // keyboard up = the visible area is much shorter than the full screen. Compare with the screen, not innerHeight:
+    // on iPhone innerHeight can shrink together with the keyboard, and then the page was forced back to full height
+    // (the composer ended up under the keyboard).
+    const kb = vv && full - vv.height > 150;
+    if (kb) { s.top = Math.max(0, vv.offsetTop) + 'px'; s.bottom = 'auto'; s.height = vv.height + 'px'; }
+    else { s.top = ''; s.bottom = full > innerHeight ? 'auto' : ''; s.height = full > innerHeight ? full + 'px' : ''; }
   }
   fitScreen();
   addEventListener('resize', fitScreen);
