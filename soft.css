@@ -62,7 +62,7 @@ svg.fa { width: 1em; height: 1em; fill: currentColor; flex: none; }
 .home { position: fixed; inset: 0; display: flex; flex-direction: column; padding: 0; overflow: hidden; touch-action: auto; background: var(--mesh); }
 .home-scroll { flex: 1; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scrollbar-width: none;
   display: flex; flex-direction: column; gap: 18px;
-  padding: calc(env(safe-area-inset-top) + 14px) max(20px, env(safe-area-inset-right), calc((100% - 520px) / 2)) calc(env(safe-area-inset-bottom) + 110px) max(20px, env(safe-area-inset-left), calc((100% - 520px) / 2)); }
+  padding: calc(env(safe-area-inset-top) + 28px) max(20px, env(safe-area-inset-right), calc((100% - 520px) / 2)) calc(env(safe-area-inset-bottom) + 110px) max(20px, env(safe-area-inset-left), calc((100% - 520px) / 2)); }
 .home-scroll::-webkit-scrollbar { display: none; }
 .home-scroll > * { flex-shrink: 0; }
 .top { display: flex; justify-content: space-between; align-items: center; }
@@ -222,3 +222,6 @@ svg.fa { width: 1em; height: 1em; fill: currentColor; flex: none; }
 .log-undo { bottom: calc(env(safe-area-inset-bottom) + 100px); }
 
 @media (prefers-reduced-motion: reduce) { .bot, .bot .eyes, .pill-tag i { animation: none !important; } }
+
+/* iOS ใส่เบลอเองที่ขอบบน (ใต้แถบสถานะและเลยลงมานิดหนึ่ง) → หัวของทุกหน้าเว้นลงมาให้พ้นช่วงนั้น ตัวหนังสือจะคมชัด */
+.overlay { padding-top: calc(env(safe-area-inset-top) + 26px); }
