@@ -3,30 +3,46 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#07040f">
-  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#F7F6FC">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Alpha">
   <meta name="description" content="รวมแอปส่วนตัว พร้อมสรุปและแจ้งเตือนจากทุกแอป">
   <title>Alpha</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="apple-touch-icon" href="/icons/icon-180.png">
   <link rel="icon" href="/icons/icon-192.png" type="image/png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/soft.css">
   <script src="/alpha-theme.js"></script>
+  <!-- หน้า Alpha ใช้ธีม Soft Indigo เสมอ (ธีมสี 6 ชุดใช้กับ Fuel Logger / Finance) · ใช้แค่โหมดสว่าง/มืด
+       แถบสถานะ iPhone ให้ตรงกับพื้นหลังของ Soft Indigo -->
+  <script>(function () {
+    var T = window.AlphaTheme, apply = T.apply;
+    function soft() {
+      var dark = T.isDark(), m = document.querySelector('meta[name="theme-color"]'), sb = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+      if (m) m.content = dark ? '#12121A' : '#F7F6FC';
+      if (sb) sb.content = dark ? 'black-translucent' : 'default';
+    }
+    T.apply = function () { apply(); soft(); };
+    soft();
+    try { var c = JSON.parse(localStorage.getItem('alpha.character') || 'null'); if (c && c.float === false) document.documentElement.classList.add('no-float'); if (c && c.blink === false) document.documentElement.classList.add('no-blink'); } catch (e) {}
+  })();</script>
   <!-- หน้า welcome ต้องขึ้นตั้งแต่เฟรมแรก (ไม่เห็นหน้าแรกแวบก่อน): ทุกครั้งที่เปิดแอปใหม่ (sessionStorage ว่าง)
        กลับจากแอปลูกในหน้าต่างเดิม / สลับแอปแล้วกลับมา = session เดิม ไม่โชว์ · #report / #settings ไม่โชว์ -->
   <script>try { if (!sessionStorage.getItem('hub.session') && !/^#(report|settings)$/.test(location.hash)) document.documentElement.classList.add('welcome'); } catch (e) { /* ไม่มี storage = ไม่โชว์ */ }</script>
-  <link rel="preload" href="/assets/alpha-character.png" as="image">
   <!-- โหลดทุกไฟล์ที่ hub ต้องใช้พร้อมกันตั้งแต่ต้น (ไม่ต้องรอทีละชั้น) -->
   <link rel="modulepreload" href="/hub.js">
   <link rel="modulepreload" href="/config.js">
   <link rel="modulepreload" href="/commands.js">
   <link rel="modulepreload" href="/messages.js">
   <link rel="modulepreload" href="/speech.js">
-  <link rel="modulepreload" href="/alpha-face.js">
+  <link rel="modulepreload" href="/icons.js">
+  <link rel="modulepreload" href="/alpha-character.js">
   <link rel="modulepreload" href="/log/parse.js">
   <link rel="modulepreload" href="/log/categories.js">
   <link rel="modulepreload" href="/log/card.js">
@@ -40,47 +56,77 @@
   <link rel="preload" href="/data/categoryWords.th.json" as="fetch" crossorigin>
 </head>
 <body>
-  <div class="aurora" aria-hidden="true"></div>
-
   <!-- หน้าแรก -->
   <main class="home" id="home">
-    <div class="hud-top mono"><span class="live" id="liveState"><i></i><b>ALPHA · ONLINE</b></span><span class="hud-right"><span id="hudDate"></span>
-      <button type="button" class="gear" id="settingsBtn" aria-label="ตั้งค่า"><svg viewBox="0 0 24 24"><path d="M4 7h9M18 7h2M4 17h2M11 17h9"/><circle cx="15.5" cy="7" r="2.5"/><circle cx="8.5" cy="17" r="2.5"/></svg></button></span></div>
+    <div class="home-scroll" id="homeScroll">
+      <div class="top">
+        <div class="me">
+          <span id="meBot"></span>
+          <div><small id="greet">สวัสดี</small><b><i class="live-dot" id="chatDot" hidden></i>Alpha Online</b></div>
+        </div>
+        <div class="top-btns">
+          <button type="button" class="circle" id="modeBtn" aria-label="สลับสว่าง/มืด"></button>
+          <button type="button" class="circle" id="settingsBtn" aria-label="ตั้งค่า"></button>
+        </div>
+      </div>
 
-    <a class="orb-btn" id="orbBtn" href="claude://claude.ai/project/01a1a61f-5150-74b6-b77b-14f320f89b67" aria-label="เปิด Alpha ใน Claude">
-      <span class="alpha alpha-lg" id="alpha" aria-hidden="true"><i class="glow-orb"></i><i class="ring r1"></i><span class="char"><img src="/assets/alpha-character.png" alt="" draggable="false"><i class="shirt"></i></span><i class="ring r2"></i><i class="spark s1"></i><i class="spark s2"></i></span>
-    </a>
+      <h1 class="hello" id="hello"></h1>
 
-    <header class="greet">
-      <h1 id="greet">สวัสดี</h1>
-      <button type="button" class="headline" id="headline" data-brief aria-label="ฟังสรุป">กำลังโหลด…</button>
-    </header>
+      <!-- สรุปประจำวัน: แตะแล้วเปิดข้อความเต็ม -->
+      <button type="button" class="brief" id="brief" aria-haspopup="dialog">
+        <span class="brief-text">
+          <span class="pill-tag"><i></i>สรุปประจำวัน • Daily Brief</span>
+          <h3 id="briefTitle">กำลังโหลด…</h3>
+          <p id="briefText"></p>
+          <span class="more" id="briefMore" hidden>แตะเพื่ออ่านทั้งหมด</span>
+        </span>
+        <span id="briefBot"></span>
+      </button>
 
-    <button type="button" class="log-pending" id="logPending" hidden></button>
-    <section class="alerts" id="alerts" aria-live="polite"></section>
-    <section class="apps" id="apps"></section>
+      <section id="usage" hidden>
+        <div class="sec-head"><h3>การใช้งานสัปดาห์นี้ (Usage)</h3><span id="usageReset"></span></div>
+        <div class="gauges" style="margin-top:18px">
+          <div class="card gauge" id="gWeek" style="--c:var(--brand)"></div>
+          <div class="card gauge" id="gFive" style="--c:var(--pink)"></div>
+        </div>
+      </section>
+
+      <section id="alertSec" hidden>
+        <div class="sec-head"><h3>แจ้งเตือน</h3><span id="alertCount"></span></div>
+        <div class="alerts" id="alerts" aria-live="polite" style="margin-top:18px"></div>
+      </section>
+      <div id="offline"></div>
+      <button type="button" class="log-pending" id="logPending" hidden></button>
+    </div>
+
+    <nav class="tabbar" id="tabbar" aria-label="เมนู"></nav>
   </main>
 
+  <!-- สรุปประจำวันแบบเต็ม: พื้นหลังเบลอ การ์ดกลางจอ ตัวละครด้านบน -->
+  <div class="pop" id="briefPop" hidden>
+    <div class="pop-card" role="dialog" aria-modal="true" aria-labelledby="popTitle">
+      <span id="popBot"></span>
+      <span class="pill-tag"><i></i>สรุปประจำวัน • Daily Brief</span>
+      <h3 id="popTitle"></h3>
+      <div class="pop-body" id="popBody"></div>
+      <div class="pop-actions">
+        <button type="button" class="btn ghost" id="popListen">ฟังสรุป</button>
+        <button type="button" class="btn primary" id="popClose">รับทราบค่ะ</button>
+      </div>
+    </div>
+  </div>
+
   <!-- จดรายรับรายจ่าย: การ์ดยืนยัน · แถบเลิกทำ · รายการรอส่ง -->
+  <div class="answer" id="answer" role="status" hidden></div>
   <div class="log-layer" id="logCard" hidden></div>
   <div class="log-undo glass" id="logUndo" hidden><span id="logUndoText"></span><button type="button" id="logUndoBtn">เลิกทำ</button></div>
   <section class="overlay log-queue" id="logQueue" aria-label="รายการรอส่ง" hidden>
     <header class="rp-head">
-      <button type="button" class="back" id="logQueueBack" aria-label="กลับ"><svg viewBox="0 0 8 14"><path d="M6.5 1.5L1.5 7l5 5.5"/></svg></button>
+      <button type="button" class="back" id="logQueueBack" aria-label="กลับ"></button>
       <h2 class="set-title">รายการรอส่ง</h2>
     </header>
     <div class="set-stack" id="logQueueList"></div>
   </section>
-
-  <!-- ช่องสั่งงาน -->
-  <div class="answer" id="answer" role="status" hidden></div>
-  <form class="cmd glass" id="cmd" autocomplete="off">
-    <span class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
-    <input id="cmdInput" type="text" enterkeyhint="go" placeholder="สั่งงาน เช่น เงินเหลือเท่าไหร่" aria-label="สั่งงาน">
-    <button type="button" class="mic" id="micBtn" aria-label="พูดคำสั่ง">
-      <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
-    </button>
-  </form>
 
   <!-- หน้า welcome (HUD): ครั้งแรกของวัน หรือตอนไม่มี cache · แตะเพื่อข้าม -->
   <section class="sync" id="sync" aria-label="กำลังเชื่อมต่อ" hidden>
@@ -105,30 +151,44 @@
   <!-- หน้ารายงาน -->
   <section class="overlay report" id="report" aria-label="รายงาน" hidden>
     <header class="rp-head">
-      <button type="button" class="back" id="reportBack" aria-label="กลับ"><svg viewBox="0 0 8 14"><path d="M6.5 1.5L1.5 7l5 5.5"/></svg></button>
-      <span class="avatar" id="rpAvatar" aria-hidden="true"><span class="char"><img src="/assets/alpha-character.png" alt="" draggable="false"><i class="shirt"></i></span></span>
-      <div class="rp-title"><b class="mono">ALPHA</b><small class="mono" id="rpState"></small></div>
-      <button type="button" class="speak" id="speakBtn" aria-label="อ่านให้ฟัง">
-        <svg viewBox="0 0 24 24"><path d="M4 10v4h4l5 4V6L8 10z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>
-      </button>
+      <button type="button" class="back" id="reportBack" aria-label="กลับ"></button>
+      <span class="rp-avatar" id="rpAvatar"></span>
+      <div class="rp-title"><b>น้องอัล</b><small id="rpState"></small></div>
+      <button type="button" class="speak" id="speakBtn" aria-label="อ่านให้ฟัง"></button>
     </header>
-    <div class="rp-body mono" id="rpBody"></div>
+    <div class="rp-body" id="rpBody"></div>
   </section>
 
   <!-- หน้าตั้งค่า -->
   <section class="overlay settings" id="settings" aria-label="ตั้งค่า" hidden>
-    <header class="rp-head">
-      <button type="button" class="back" id="settingsBack" aria-label="กลับ"><svg viewBox="0 0 8 14"><path d="M6.5 1.5L1.5 7l5 5.5"/></svg></button>
+    <header class="rp-head set-head">
+      <button type="button" class="back" id="settingsBack" aria-label="กลับ"></button>
       <h2 class="set-title" id="setTitle"></h2>
     </header>
-    <div class="set-label" id="themeLabel"></div>
-    <div class="themes" id="themes" role="radiogroup"></div>
+
+    <div class="set-label">ตัวละคร</div>
+    <div class="set-card studio" id="studio">
+      <div class="seg three" id="charRoom" role="radiogroup" aria-label="ห้อง"></div>
+      <div class="stage" id="charStage"></div>
+      <span class="row-lbl">สี</span>
+      <div class="swatches" id="charColors" role="radiogroup" aria-label="สี"></div>
+      <span class="row-lbl">ดวงตา</span>
+      <div class="eyes-pick" id="charEyes" role="radiogroup" aria-label="ดวงตา"></div>
+      <div>
+        <div class="toggle-row"><span id="floatLabel">ลอยขึ้นลง</span><button type="button" class="switch" id="floatSwitch" role="switch" aria-checked="true" aria-labelledby="floatLabel"></button></div>
+        <div class="toggle-row"><span id="blinkLabel">กะพริบตา</span><button type="button" class="switch" id="blinkSwitch" role="switch" aria-checked="true" aria-labelledby="blinkLabel"></button></div>
+      </div>
+      <p class="set-hint" id="charHint" style="margin:0"></p>
+    </div>
+
     <div class="set-label" id="modeLabel"></div>
     <div class="seg three" id="modeSeg" role="radiogroup">
       <button type="button" role="radio" data-mode="auto"></button>
       <button type="button" role="radio" data-mode="light"></button>
       <button type="button" role="radio" data-mode="dark"></button>
     </div>
+    <div class="set-label" id="themeLabel"></div>
+    <div class="themes" id="themes" role="radiogroup"></div>
     <div class="set-label" id="langLabel"></div>
     <div class="seg" id="langSeg" role="radiogroup">
       <button type="button" role="radio" data-lang="th">ไทย</button>
@@ -137,7 +197,7 @@
     <div class="set-label" id="connLabel"></div>
     <div class="set-stack" id="conns"></div>
     <div class="set-label" id="alertLabel"></div>
-    <div class="glass set-card" style="margin-top:0">
+    <div class="set-card">
       <label class="set-row" for="paceMin"><span id="paceLabel"></span>
         <input id="paceMin" type="number" inputmode="numeric" min="0" step="50"></label>
       <p class="set-hint" id="paceHint"></p>
@@ -145,7 +205,7 @@
       <p class="set-hint" id="briefHint"></p>
     </div>
     <div class="set-label" id="speechLabel"></div>
-    <div class="glass set-card" style="margin-top:0">
+    <div class="set-card">
       <label class="set-row" for="tightPerDay"><span id="tightLabel"></span>
         <input id="tightPerDay" type="number" inputmode="numeric" min="0" step="10"></label>
       <label class="set-row" for="overMid" style="margin-top:10px"><span id="overMidLabel"></span>
@@ -154,20 +214,8 @@
         <input id="overHigh" type="number" inputmode="numeric" min="0" step="100"></label>
       <p class="set-hint" id="speechHint"></p>
     </div>
-    <div class="set-label">จดรายรับรายจ่ายจากช่องสั่งงาน</div>
-    <div class="glass set-card" style="margin-top:0">
-      <label class="set-col" for="logUrl"><span>URL เขียนชีต (เว้นว่าง = ใช้ลิงก์เดียวกับ Finance)</span>
-        <input id="logUrl" type="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://script.google.com/macros/s/…/exec"></label>
-      <label class="set-col" for="logToken" style="margin-top:10px"><span>รหัสเชื่อม (HUB_TOKEN)</span>
-        <input id="logToken" type="password" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
-      <label class="set-row" for="lateCutoff" style="margin-top:10px"><span>ไม่ระบุวัน ก่อนกี่โมงให้ถือเป็นของเมื่อวาน (0 = ปิด)</span>
-        <input id="lateCutoff" type="number" inputmode="numeric" min="0" max="12" step="1"></label>
-      <p class="set-hint">ค่าน้ำมันกับรูดบัตรไม่จดตรงนี้ · ทุกรายการต้องกดยืนยันก่อนจด</p>
-      <div class="set-label" style="margin:14px 0 6px">คำที่ Alpha จำไว้</div>
-      <div id="learnedList" class="learned"></div>
-    </div>
     <div class="set-label" id="voiceLabel"></div>
-    <div class="glass rp-voice">
+    <div class="rp-voice">
       <div class="seg" id="voiceSeg" role="radiogroup">
         <button type="button" role="radio" data-voice="device"></button>
         <button type="button" role="radio" data-voice="siri"></button>

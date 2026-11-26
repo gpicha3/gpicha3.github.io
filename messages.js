@@ -66,7 +66,7 @@ export const M = {
   /* ---------- หน้าตั้งค่า ---------- */
   settings: {
     title: 'ตั้งค่า',
-    themeLabel: 'ธีมสี (Alpha, Fuel Logger และ Finance เปลี่ยนตามกัน)',
+    themeLabel: 'ธีมสีของ Fuel Logger และ Finance (หน้า Alpha ใช้ธีม Soft Indigo)',
     themeTime: 'ตามเวลา',
     modeLabel: 'โหมด',
     modes: { auto: 'อัตโนมัติ', light: 'สว่าง', dark: 'มืด' },

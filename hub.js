@@ -1,13 +1,14 @@
-// Hub: หน้าแรก + หน้าซิงก์ + หน้ารายงาน + ช่องสั่งงาน
+// Hub: หน้าแรก (ธีม Soft Indigo) + หน้าซิงก์ + หน้ารายงาน + หน้าตั้งค่า
+// ช่องสั่งงานบนหน้าแรกเอาออกแล้ว (บอสสั่งงานผ่านแชตแทน) · โค้ดจดรายรับรายจ่าย (log/*) ยังอยู่ ใช้ส่งรายการที่ค้างในคิว
 import APPS from './config.js';
-import { runCommand } from './commands.js';
 import { M, greeting } from './messages.js';
 import { loadMessages, compose, wrap, render as renderLine, pickTease, teaseUsedToday, foodLevel } from './speech.js';
 import { parseLog, iso } from './log/parse.js';
 import { categorize, learnKey } from './log/categories.js';
 import { openCard, closeCard, isOpen as cardOpen, setBusy, bindCard, isBig, openAsk } from './log/card.js';
 import * as sheet from './log/sheet.js';
-import { mountFace } from './alpha-face.js';
+import { icon } from './icons.js';
+import * as Char from './alpha-character.js';
 
 // ประโยคพูด + ตารางคำ → หมวด ของการจดรายจ่าย: โหลดพร้อมกันเบื้องหลัง (index.html preload ไว้ตั้งแต่ต้น)
 // หน้าแรกแสดงตัวเลขจาก cache ได้เลยโดยไม่ต้องรอ · ส่วนที่ต้องใช้ประโยค (อารมณ์ตัวละคร หน้าสรุป) รอ `ready`
@@ -107,51 +108,138 @@ function allAlerts() {
 }
 
 /* ---------- หน้าแรก ---------- */
+let charCfg = Char.load();
+const APP_SHORT = { 'fuel-logger': 'Fuel', 'finance-app': 'Finance' };
+const APP_ICON = { 'fuel-logger': 'gas-pump', 'finance-app': 'wallet' };
+const APP_COLOR = { 'fuel-logger': 'var(--mint)', 'finance-app': 'var(--brand)', chat: 'var(--pink)' };
 function renderHome() {
   const now = new Date();
-  $('#hudDate').textContent = `${TH_DAYS[now.getDay()]} ${now.getDate()} ${TH_MONTHS[now.getMonth()]}`;
   $('#greet').textContent = greeting(now);
+  if (!$('#meBot').firstChild || $('#meBot').dataset.v !== String(charCfg.at)) {
+    $('#meBot').innerHTML = Char.bot('general', charCfg);
+    $('#briefBot').innerHTML = Char.bot('general', charCfg, 'float');
+    $('#meBot').dataset.v = String(charCfg.at);
+  }
 
-  const live = $('#liveState');
   const anyError = Object.values(results).some((r) => r.status === 'error');
-  live.className = `live${syncing ? ' warn' : anyError ? ' bad' : ''}`;
-  live.querySelector('b').textContent = `ALPHA · ${syncing ? 'SYNCING' : anyError ? 'PARTIAL' : 'ONLINE'}`;
-
   const alerts = allAlerts();
   const urgent = alerts.filter((a) => a.level === 'urgent').length;
   const soon = alerts.filter((a) => a.level === 'soon').length;
   const hasData = Object.values(results).some((r) => r.summary);
   const H = M.headline;
-  $('#headline').disabled = !hasData;
-  $('#headline').innerHTML = urgent ? `<b class="u">${esc(H.urgent(urgent))}</b>${soon ? `${esc(H.join)}<b class="s">${esc(H.soon(soon))}</b>` : ''}`
-    : soon ? `<b class="s">${esc(H.soon(soon))}</b>`
-      : esc(!hasData && syncing ? H.loading : hasData ? H.allGood : H.noData);
-  if (hasData) $('#headline').insertAdjacentHTML('beforeend', PLAY);
+  const status = urgent ? `<span class="u">${esc(H.urgent(urgent))}</span>${soon ? `${esc(H.join)}<span>${esc(H.soon(soon))}</span>` : ''}`
+    : soon ? `<span>${esc(H.soon(soon))}</span>`
+      : `<span>${esc(!hasData && syncing ? H.loading : hasData ? H.allGood : H.noData)}</span>`;
+  $('#hello').innerHTML = `${esc(greeting(now).replace(/ค่ะ$/, ''))}บอส,<br>${status}`;
 
-  // ป้ายแจ้งเตือน: อันแรกเด่น + อีกไม่เกิน 2 อัน + ดูทั้งหมด
-  const top = alerts.slice(0, 3);
-  if (!top.length) $('#alerts').innerHTML = '';
-  else {
-    const [first, ...rest] = top;
-    // ยอดเตรียมวันเงินเข้า (Finance): แสดงแยก ttb / บิลบัตร + ยอดรวม ไม่ต้องกาง
-    if (first.kind === 'payday' && first.lines?.length) first.items = null;
-    // รายการที่รวมหลายงวด (items) แตะแล้วกางรายการย่อย แทนการเปิดลิงก์
-    const tag = (a, cls, inner) => (a.kind === 'payday' && a.lines?.length && cls === 'al-main'
-      ? `<div class="${cls} prep-card">${inner}</div>`
-      : a.items?.length
-      ? `<button type="button" class="${cls}" data-toggle aria-expanded="false">${inner}</button>${subList(a)}`
-      : `<a class="${cls}" href="${esc(a.link || a.app.path)}">${inner}</a>`);
-    $('#alerts').innerHTML = `<div class="glass al-card">
-      ${tag(first, 'al-main', `<span class="al-ic ${first.level}" aria-hidden="true"><i class="al-face"><img src="/assets/alpha-character.png" alt=""></i></span>
-        <span class="al-text"><b>${keep(first.kind === 'payday' && first.lines?.length ? first.text.replace(/ ฿[\d,.]+/, '') : first.text)}</b>${prepLines(first)}<small>${esc(first.app.name)}</small></span>${first.items?.length ? CARET : CHEV}`)}
-      ${rest.map((a) => tag(a, 'al-row', `<span class="dot ${a.level}"></span><span>${keep(a.text)}</span><small>${esc(a.app.name)}</small>${a.items?.length ? CARET : ''}`)).join('')}
-      ${alerts.length > 1 ? `<button type="button" class="al-more" data-report>${esc(M.seeAll(alerts.length))}</button>` : ''}
-    </div>`;
-  }
+  // สรุปประจำวัน: หัวข้อ = ประโยคแรก · ที่เหลือแสดง 3 บรรทัด (เต็มใน popup)
+  const lines = briefLines();
+  $('#brief').disabled = !lines.length;
+  $('#briefTitle').textContent = lines[0] || (syncing ? H.loading : hasData ? H.allGood : H.noData);
+  $('#briefText').textContent = lines.slice(1).join(' ');
+  $('#briefMore').hidden = lines.length < 2;
 
-  $('#apps').innerHTML = APPS.map(appCard).join('');
-  fitHome();
+  // แจ้งเตือน (ทุกเรื่อง เรียงด่วนก่อน) · รายการที่รวมหลายงวดแตะแล้วกาง · ยอดเตรียมวันเงินเข้าแสดงทุกบรรทัด
+  $('#alertSec').hidden = !alerts.length;
+  $('#alertCount').textContent = alerts.length ? `${alerts.length} เรื่อง` : '';
+  $('#alerts').innerHTML = alerts.map(alertCard).join('');
+  // แอปที่ยังไม่เชื่อม / โหลดไม่ได้เลย
+  $('#offline').innerHTML = APPS.filter((a) => a.summary).map((a) => {
+    const r = results[a.id];
+    if (r.status === 'setup') return offlineRow(a, M.card.notSetTitle, M.card.notSetSub);
+    if (r.status === 'error' && !r.summary) return offlineRow(a, M.card.errorTitle, r.error === 'unauthorized' ? M.card.errorBadToken : M.card.errorOther);
+    return '';
+  }).join('');
+
+  renderTabbar(alerts);
   if (messagesReady && !syncing && (hasData || anyError)) setEmotion(brief().emotion);
+}
+
+// ประโยคสรุป (ชุดเดียวกับหน้ารายงาน/เสียง) · ยังโหลดประโยคไม่เสร็จ = ใช้ข้อความแจ้งเตือนไปก่อน
+function briefLines() {
+  if (!messagesReady) return allAlerts().map((a) => a.text);
+  const { items } = brief();
+  const out = [];
+  for (const it of items) {
+    out.push(it.text);
+    if (it.group) for (const sub of it.group.items) out.push(`– ${sub.text}`);
+  }
+  return out;
+}
+
+function alertCard(a) {
+  const c = APP_COLOR[a.app.id] || 'var(--brand)';
+  const payday = a.kind === 'payday' && a.lines?.length;
+  const text = payday ? a.text.replace(/ ฿[\d,.]+/, '') : a.text;
+  const inner = `<span class="lvl ${esc(a.level)}"></span>
+    <span class="a-txt al-text"><b>${keep(text)}</b>${prepLines(a)}${a.dueDate && !payday ? `<small>${esc(a.dueDate)}</small>` : ''}</span>
+    <span class="chip" style="--c:${c}">${esc(APP_SHORT[a.app.id] || a.app.name)}</span>${!payday && a.items?.length ? CARET : ''}`;
+  if (payday) return `<div class="card alert prep-card">${inner}</div>`;
+  if (a.items?.length) return `<div class="alert-wrap"><button type="button" class="card alert" data-toggle aria-expanded="false">${inner}</button>${subList(a)}</div>`;
+  return `<a class="card alert" href="${esc(a.link || a.app.path)}">${inner}</a>`;
+}
+function offlineRow(a, title, sub) {
+  return `<a class="offline-card" href="${esc(a.setupLink || a.path)}"><div><b>${esc(a.name)} · ${esc(title)}</b><small>${esc(sub)}</small></div><span class="pill">${esc(M.card.setupButton)}</span></a>`;
+}
+
+// แถบเมนูล่าง: Home · Fuel · แชต (กลาง) · Finance · รายงาน · ตัวเลขชมพู = แจ้งเตือนด่วน/ใกล้ถึงของแอปนั้น
+function renderTabbar(alerts = allAlerts()) {
+  const count = (id) => alerts.filter((a) => a.app.id === id && a.level !== 'info').length;
+  const app = (id) => APPS.find((a) => a.id === id);
+  const tab = (a) => {
+    if (!a) return '';
+    const n = count(a.id);
+    return `<a class="tab" href="${esc(a.path)}" data-app="${esc(a.id)}">${icon(APP_ICON[a.id] || 'house')}<span>${esc(APP_SHORT[a.id] || a.name)}</span>${n ? `<i class="badge">${n}</i>` : ''}</a>`;
+  };
+  const chat = app('chat');
+  $('#tabbar').innerHTML = `<a class="tab on" href="/" aria-current="page">${icon('house')}<span>Home</span></a>
+    ${tab(app('fuel-logger'))}
+    ${chat ? `<a class="tab tab-mid" href="${esc(chat.path)}" data-app="chat"><span class="mid-ico">${icon('comments')}</span><span>แชต</span><i class="live-dot" ${chatOnline ? '' : 'hidden'}></i></a>` : ''}
+    ${tab(app('finance-app'))}
+    <button type="button" class="tab" data-report>${icon('chart-simple')}<span>รายงาน</span></button>`;
+}
+
+/* ---------- usage ของบอท + สถานะแชต (จาก PC ผ่าน Tailscale: /api/usage) ---------- */
+// PC ปิด / ไม่ได้ต่อ Tailscale = ซ่อนจุดเขียว และแสดงตัวเลขล่าสุดที่จำไว้ (ถ้ามี)
+const USAGE_KEY = 'hub.usage';
+let chatOnline = false;
+let usage = store.get(USAGE_KEY, null);
+async function loadUsage() {
+  const url = Char.pcApi('usage');
+  if (!url) { chatOnline = false; renderUsage(); return; }
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), 5000);
+  try {
+    const r = await fetch(url, { cache: 'no-store', signal: ctl.signal });
+    if (!r.ok) throw new Error(String(r.status));
+    const u = await r.json();
+    chatOnline = true;
+    if (u?.week || u?.fiveHour) { usage = { ...u, at: Date.now() }; store.set(USAGE_KEY, usage); }
+  } catch { chatOnline = false; } finally { clearTimeout(t); }
+  renderUsage();
+  renderTabbar();
+  // PC ออนไลน์: ดึงค่าตัวละครที่อาจตั้งจากเครื่องอื่น
+  if (chatOnline) Char.syncWithPc().then((c) => { if (c && c.at !== charCfg.at) { charCfg = c; Char.refreshAll(c); renderHome(); } });
+}
+const ARC = 'M14 58A46 46 0 0 1 106 58';
+function gauge(el, name, w, ico) {
+  const pct = Math.max(0, Math.min(100, Math.round(Number(w?.pct) || 0)));
+  const reset = w?.resetsAt ? new Date(w.resetsAt) : null;
+  const when = reset && isFinite(reset) ? (reset - Date.now() < 86400000 ? `รีเซ็ต ${reset.toTimeString().slice(0, 5)}` : `รีเซ็ต ${TH_DAYS[reset.getDay()]} ${reset.getDate()}`) : '';
+  el.innerHTML = `<svg class="arc" viewBox="0 0 120 64" aria-hidden="true"><path class="track" d="${ARC}"/><path class="val" d="${ARC}" style="stroke-dashoffset:${(145 - (145 * pct) / 100).toFixed(1)}"/></svg>
+    <span class="g-ico">${icon(ico)}</span><b>${esc(name)}</b><small>ใช้ไป ${pct}%${when ? ` · ${esc(when)}` : ''}</small>`;
+  el.setAttribute('aria-label', `${name} ใช้ไป ${pct}%`);
+}
+function renderUsage() {
+  $('#chatDot').hidden = !chatOnline;
+  const show = !!(usage?.week || usage?.fiveHour);
+  $('#usage').hidden = !show;
+  if (!show) return;
+  gauge($('#gWeek'), 'Weekly', usage.week, 'bolt');
+  gauge($('#gFive'), 'Session 5 ชม.', usage.fiveHour, 'clock');
+  const reset = usage.week?.resetsAt ? new Date(usage.week.resetsAt) : null;
+  const days = reset && isFinite(reset) ? Math.max(0, Math.ceil((reset - Date.now()) / 86400000)) : null;
+  $('#usageReset').textContent = !chatOnline && usage.at ? `ข้อมูลเมื่อ ${ago(usage.at)}` : days != null ? `รีเซ็ตใน ${days} วัน` : '';
 }
 
 // ตัวเลขกับหน่วยไม่แยกบรรทัด เช่น "อีก 2 วัน" ไม่ขาดเป็น "อีก 2 / วัน"
@@ -168,15 +256,6 @@ function prepLines(a) {
     ${a.lines.length > 1 ? `<span class="sum"><i>รวมที่ต้องเตรียม</i><b>${exact(a.total)}</b></span>` : ''}
     ${a.note ? `<em>${esc(a.note)}</em>` : ''}</span>`;
 }
-// หน้าแรกไม่เลื่อน: ถ้าการ์ดล่างสุดล้นลงไปใต้ช่องสั่งงาน ย่อตัวละครลงให้พอดี
-function fitHome() {
-  const home = $('#home');
-  home.style.setProperty('--squeeze', '0px');
-  const over = $('#apps').getBoundingClientRect().bottom - ($('#cmd').getBoundingClientRect().top - 10);
-  if (over > 0) home.style.setProperty('--squeeze', `${Math.ceil(over)}px`);
-}
-window.addEventListener('resize', () => { if (!document.body.classList.contains('kb-open')) fitHome(); });
-const PLAY = '<svg class="play" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h4l5 4V6L8 10z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/></svg>';
 const CARET = '<svg class="caret" viewBox="0 0 14 8"><path d="M1.5 1.5L7 6.5l5.5-5"/></svg>';
 function subList(a) {
   return `<div class="al-sub" hidden>${a.items.map((it) => `<a href="${esc(it.link || a.link || a.app.path)}"><span>${esc(it.text)}</span>${CHEV}</a>`).join('')}</div>`;
@@ -506,24 +585,18 @@ function speak(raw, onEnd) {
   if (voice) u.voice = voice;
   u.rate = 1.02;
   setSpeaking(true);
-  faces.forEach((f) => f.talk(true));
-  u.onboundary = () => {
-    const a = $('#alpha');
-    a.classList.add('bump');
-    setTimeout(() => a.classList.remove('bump'), 120);
-  };
-  u.onend = u.onerror = () => { setSpeaking(false); faces.forEach((f) => f.talk(false)); onEnd?.(); };
+  u.onend = u.onerror = () => { setSpeaking(false); onEnd?.(); };
   speechSynthesis.speak(u);
 }
+// ตอนอ่านออกเสียง: ตัวละครในหน้ารายงานเด้งตามจังหวะ
 function setSpeaking(on) {
-  $('#alpha').classList.toggle('speaking', on);
   $('#rpAvatar').classList.toggle('speaking', on);
 }
 function stopSpeaking() {
   if (canSpeak) speechSynthesis.cancel();
   setSpeaking(false);
-  faces.forEach((f) => f.talk(false));
   $('#speakBtn').classList.remove('on');
+  $('#popListen').classList.remove('on');
 }
 function renderVoice() {
   $$('#voiceSeg [data-voice]').forEach((b) => {
@@ -561,7 +634,7 @@ $('#speakBtn').addEventListener('click', () => {
   speak(text, () => btn.classList.remove('on'));
 });
 
-/* ---------- ช่องสั่งงาน ---------- */
+/* ---------- ตำแหน่งการ์ดจด (log-layer) ตอนคีย์บอร์ดขึ้น ---------- */
 // ช่องสั่งงานวางจากขอบล่างของพื้นที่ที่วาดได้ (ไม่ใช้ความสูงจอ เพราะ PWA บน iPhone จะตัดส่วนที่เกินทิ้ง)
 // ตอนพิมพ์: ชิดเหนือคีย์บอร์ดตามขอบล่างของ visual viewport (--vv-bottom)
 // ช่องสั่งงานยึดขอบล่างของส่วนที่มองเห็นจริงเสมอ (CSS: top = --vv-bottom แล้วเลื่อนขึ้นเท่าความสูงตัวเอง)
@@ -570,7 +643,7 @@ const vv = window.visualViewport;
 let placeQueued = false;
 function placeCmd() {
   placeQueued = false;
-  const typing = document.activeElement === $('#cmdInput');
+  const typing = !!document.activeElement?.closest?.('.lc');
   const vvBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
   document.documentElement.style.setProperty('--vv-bottom', `${Math.round(vvBottom)}px`);
   document.body.classList.toggle('kb-open', typing && window.innerHeight - (vv ? vv.height : window.innerHeight) > 80);
@@ -581,8 +654,6 @@ window.addEventListener('resize', queuePlace);
 if (vv) { vv.addEventListener('resize', queuePlace); vv.addEventListener('scroll', queuePlace); }
 // iOS เลื่อนทั้งหน้าตอนแตะช่องพิมพ์ (ช่องเด้งไปกลางจอ) → ดึงหน้ากลับที่เดิมทันทีที่มันเลื่อน
 window.addEventListener('scroll', () => { if (window.scrollY !== 0) window.scrollTo(0, 0); queuePlace(); }, { passive: true });
-$('#cmdInput').addEventListener('focus', () => { window.scrollTo(0, 0); queuePlace(); setTimeout(queuePlace, 350); });
-$('#cmdInput').addEventListener('blur', () => { window.scrollTo(0, 0); setTimeout(queuePlace, 60); });
 let answerTimer = null;
 function showAnswer(say, sub) {
   const el = $('#answer');
@@ -617,42 +688,6 @@ function reply(parts, emotion, voice = false) {
   flashEmotion(emotion);
   if (voice) speak(text);
   return text;
-}
-
-function handleCommand(text, { voice = false } = {}) {
-  const raw = String(text || '').trim();
-  if (!raw) return;
-  const parsed = parseLog(raw, { cutoff: settings.lateNightCutoffHour, spoken: voice });
-  const clear = () => { $('#cmdInput').value = ''; $('#cmdInput').blur(); };
-  // การ์ดเปิดอยู่ + "ยกเลิก/ไม่เอา/ไม่" = ปิดการ์ด ไม่จด
-  if (cardOpen() && (parsed.intent === 'cancel' || (parsed.intent === 'undo' && parsed.cancel))) { clear(); cancelLog(voice); return; }
-  if (parsed.intent === 'undo') { clear(); askUndo(voice); return; }
-  if (parsed.intent === 'card') { clear(); reply([['log-card-skip']], 'interrupt', voice); return; }
-  if (parsed.intent === 'fuel') {
-    // ค่าน้ำมันไม่ลง Daily Log → เปิดฟอร์มเติมน้ำมันในแอปรถ พร้อมกรอกราคาที่แกะได้
-    clear();
-    showAnswer(M.cmd.openFuelForm);
-    if (voice && voiceMode !== 'siri') speak(M.cmd.openFuelForm);
-    setTimeout(() => { location.href = `/fuel-logger/#add${parsed.fuelAmount ? `?price=${parsed.fuelAmount}` : ''}`; }, voice ? 900 : 450);
-    return;
-  }
-  if (parsed.intent === 'entries') { clear(); openLog(parsed, raw, voice); return; }
-  if (parsed.intent === 'none' && parsed.logish) { clear(); reply([['log-parse-fail']], 'unsure', voice); return; }
-
-  // คำถาม / เปิดแอป / คำสั่งเดิม
-  const res = runCommand(raw, { apps: APPS, results, alerts: allAlerts() });
-  if (!res) return;
-  clear();
-  // แกะคำสั่งไม่ออก → ประโยค "ไม่แน่ใจ" + ตัวละครทำหน้าไม่แน่ใจระหว่างที่คำตอบขึ้นอยู่
-  if (res.unknown) {
-    res.say = renderLine('uncertain-command', {}, { daily: false }) || res.say;
-    flashEmotion('unsure');
-  }
-  showAnswer(res.say, res.sub);
-  // โหมด Siri สลับแอปทุกครั้งที่พูด จึงพูดเฉพาะคำตอบที่ไม่ต้องเปิดหน้าอื่นต่อ
-  if (voice && !(voiceMode === 'siri' && (res.go || res.report))) speak(res.sub ? `${res.say} ${res.sub}` : res.say);
-  if (res.report) setTimeout(() => openReport(), 250);
-  else if (res.go) setTimeout(() => { location.href = res.go; }, voice ? 900 : 450);
 }
 
 /* ---------- จดรายรับรายจ่าย (log/*) ---------- */
@@ -842,55 +877,34 @@ async function flushLogQueue() {
 window.addEventListener('online', flushLogQueue);
 bindCard();
 
-$('#cmd').addEventListener('submit', (e) => {
-  e.preventDefault();
-  handleCommand($('#cmdInput').value);
-});
-
-// ไมค์: ใช้ Web Speech API ถ้าเครื่องรองรับ ถ้าไม่รองรับให้ใช้ปุ่มไมค์บนคีย์บอร์ด iPhone แทน
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-let recog = null;
-function keyboardDictationHint() {
-  $('#cmdInput').focus();
-  showAnswer(M.input.dictation, M.input.dictationSub);
-}
-$('#micBtn').addEventListener('click', () => {
-  if (!SR) { keyboardDictationHint(); return; }
-  if (recog) { recog.stop(); return; }
-  stopSpeaking();
-  recog = new SR();
-  recog.lang = 'th-TH';
-  recog.interimResults = true;
-  recog.maxAlternatives = 1;
-  let finalText = '';
-  $('#cmd').classList.add('listening');
-  $('#cmdInput').placeholder = M.input.listening;
-  recog.onresult = (e) => {
-    const text = [...e.results].map((r) => r[0].transcript).join('');
-    $('#cmdInput').value = text;
-    if (e.results[e.results.length - 1].isFinal) finalText = text;
-  };
-  recog.onerror = (e) => {
-    console.warn('[hub] speech', e.error);
-    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') keyboardDictationHint();
-  };
-  recog.onend = () => {
-    $('#cmd').classList.remove('listening');
-    $('#cmdInput').placeholder = M.input.placeholder;
-    recog = null;
-    const text = finalText || $('#cmdInput').value;
-    if (text.trim()) handleCommand(text, { voice: true });
-  };
-  try { recog.start(); } catch { recog = null; keyboardDictationHint(); }
-});
-
 /* ---------- events ---------- */
-// แตะหัวข้อ (เช่น "2 เรื่องใกล้ถึง") = เปิดหน้าสรุปและอ่านให้ฟัง (โหมด Siri: เปิดหน้าอย่างเดียว ไม่สลับแอปเอง)
-$('#headline').addEventListener('click', () => {
+// แตะการ์ดสรุปประจำวัน = popup ข้อความเต็ม (พื้นหลังเบลอ ตัวละครด้านบน)
+function openBrief() {
+  const lines = briefLines();
+  if (!lines.length) return;
+  $('#popBot').innerHTML = Char.bot('general', charCfg, 'float');
+  $('#popTitle').textContent = lines[0];
+  $('#popBody').innerHTML = lines.slice(1).map((l) => `<p>${esc(l)}</p>`).join('');
+  $('#popListen').hidden = voiceMode === 'device' && !canSpeak;
+  $('#briefPop').hidden = false;
+  $('#popClose').focus({ preventScroll: true });
+}
+function closeBrief() { stopSpeaking(); $('#briefPop').hidden = true; }
+$('#brief').addEventListener('click', openBrief);
+$('#popClose').addEventListener('click', closeBrief);
+$('#briefPop').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeBrief(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#briefPop').hidden) closeBrief(); });
+// ฟังสรุป: อ่านประโยคชุดเดียวกับหน้ารายงาน (นับเป็นการฟัง 1 ครั้ง)
+$('#popListen').addEventListener('click', () => {
+  const b = $('#popListen');
+  if (b.classList.contains('on')) { stopSpeaking(); return; }
   bumpListen();
-  openReport();
-  if (voiceMode === 'device') setTimeout(() => { if (!$('#speakBtn').classList.contains('on')) { fromBrief = true; $('#speakBtn').click(); } }, 350);
+  b.classList.add('on');
+  speak(briefLines().join(' . '), () => b.classList.remove('on'));
 });
+// สลับสว่าง/มืดจากหน้าแรก (อัตโนมัติ → สว่าง/มืด ตรงข้ามกับตอนนี้) · ตั้งละเอียดได้ที่หน้าตั้งค่า
+function renderModeBtn() { $('#modeBtn').innerHTML = icon(T.isDark() ? 'sun' : 'moon'); }
+$('#modeBtn').addEventListener('click', () => { T.setMode(T.isDark() ? 'light' : 'dark'); renderModeBtn(); });
 $('#reportBack').addEventListener('click', () => closeReport());
 // แตะตรงไหนก็ได้บนหน้า welcome = ข้าม (ยกเว้นการ์ดตั้งค่าของแอปที่ยังไม่เชื่อม)
 $('#sync').addEventListener('click', (e) => { if (!e.target.closest('#syncIssues a')) hideSync(); });
@@ -902,7 +916,6 @@ document.addEventListener('click', (e) => {
     const open = pt.getAttribute('aria-expanded') !== 'true';
     pt.setAttribute('aria-expanded', String(open));
     pt.nextElementSibling.hidden = !open;
-    fitHome();
     return;
   }
   const t = e.target.closest('[data-toggle]');
@@ -981,14 +994,7 @@ function renderSettings() {
   $('#overHighLabel').textContent = S.overHighLabel;
   $('#speechHint').textContent = S.speechHint;
   for (const k of ['tightPerDay', 'overMid', 'overHigh']) $(`#${k}`).value = settings[k];
-  const w = store.get('alpha.logWrite', {}) || {};
-  $('#logUrl').value = w.url || '';
-  $('#logToken').value = w.token || '';
-  $('#lateCutoff').value = settings.lateNightCutoffHour;
-  const mem = store.get('alpha.learnedCategory', {});
-  $('#learnedList').innerHTML = Object.keys(mem).length
-    ? Object.entries(mem).map(([k, v]) => `<span class="learned-chip">${esc(k)} → ${esc(v)}<button type="button" data-unlearn="${esc(k)}" aria-label="ลืมคำนี้">✕</button></span>`).join('')
-    : '<span class="set-hint">ยังไม่มีค่ะ (เลือกหมวดเองบนการ์ดแล้วหนูจะจำ)</span>';
+  renderStudio();
   $('#briefLabel').textContent = S.briefLabel;
   $('#briefHint').textContent = S.briefHint;
   $('#briefSwitch').setAttribute('aria-checked', String(!!settings.morningBrief));
@@ -1018,6 +1024,7 @@ $('#modeSeg').addEventListener('click', (e) => {
   if (!b) return;
   T.setMode(b.dataset.mode);
   renderSettings();
+  renderModeBtn();
 });
 $('#langSeg').addEventListener('click', (e) => {
   const b = e.target.closest('[data-lang]');
@@ -1070,23 +1077,35 @@ $('#paceMin').addEventListener('change', (e) => {
   saveSettings();
   renderHome();
 });
-for (const id of ['logUrl', 'logToken']) {
-  $(`#${id}`).addEventListener('change', () => sheet.saveWriteConfig({ url: $('#logUrl').value, token: $('#logToken').value }));
+/* ---------- ตั้งค่าตัวละคร (สี · ดวงตา · ลอย · กะพริบ) แยกต่อห้องแชต ---------- */
+// เก็บบนเครื่อง (alpha.character) + ส่งขึ้น PC (repo alpha → data/character.json) ให้หน้าแชตใช้ค่าเดียวกัน
+let studioRoom = 'general';
+let charPushMsg = '';
+function renderStudio() {
+  const c = charCfg[studioRoom];
+  $('#charRoom').innerHTML = Char.ROOMS.map((r) => `<button type="button" role="radio" data-room="${r.id}" aria-checked="${r.id === studioRoom}">${esc(r.name)}</button>`).join('');
+  $('#charStage').innerHTML = Char.bot(studioRoom, charCfg, 'float');
+  $('#charColors').innerHTML = Char.PALETTES.map((p, i) => `<button type="button" class="swatch" role="radio" data-p="${i}" aria-checked="${i === c.p}" aria-label="${esc(p[0])}"
+    style="background:radial-gradient(circle at 30% 28%,${p[1]},transparent 55%),radial-gradient(circle at 75% 35%,${p[3]},transparent 50%),radial-gradient(circle at 40% 90%,${p[4]},transparent 55%),${p[2]}"></button>`).join('');
+  $('#charEyes').innerHTML = Object.entries(Char.EYES).map(([id, e]) => `<button type="button" role="radio" data-eyes="${id}" aria-checked="${id === c.e}"><svg viewBox="0 18 100 60" aria-hidden="true">${e.svg}</svg>${esc(e.name)}</button>`).join('');
+  $('#floatSwitch').setAttribute('aria-checked', String(charCfg.float));
+  $('#blinkSwitch').setAttribute('aria-checked', String(charCfg.blink));
+  $('#charHint').textContent = charPushMsg || 'ตัวละครในหน้าแชตเปลี่ยนตามด้วย (บันทึกขึ้น PC ตอนที่ PC เปิดอยู่)';
 }
-$('#lateCutoff').addEventListener('change', (e) => {
-  const v = Math.min(12, Math.max(0, Math.round(Number(e.target.value) || 0)));
-  settings.lateNightCutoffHour = v;
-  e.target.value = v;
-  saveSettings();
-});
-$('#learnedList').addEventListener('click', (e) => {
-  const b = e.target.closest('[data-unlearn]');
-  if (!b) return;
-  const mem = store.get('alpha.learnedCategory', {});
-  delete mem[b.dataset.unlearn];
-  store.set('alpha.learnedCategory', mem);
-  renderSettings();
-});
+async function setChar(change) {
+  charCfg = Char.save(change(structuredClone(charCfg)));
+  Char.refreshAll(charCfg);
+  renderStudio();
+  renderHome();
+  const ok = await Char.pushToPc(charCfg);
+  charPushMsg = ok ? 'บันทึกขึ้น PC แล้วค่ะ หน้าแชตเปลี่ยนตามแล้ว' : 'บันทึกบนเครื่องนี้แล้วค่ะ (PC ปิดอยู่ จะส่งขึ้นตอน PC เปิด)';
+  if (!$('#settings').hidden) renderStudio();
+}
+$('#charRoom').addEventListener('click', (e) => { const b = e.target.closest('[data-room]'); if (b) { studioRoom = b.dataset.room; renderStudio(); } });
+$('#charColors').addEventListener('click', (e) => { const b = e.target.closest('[data-p]'); if (b) setChar((c) => { c[studioRoom].p = Number(b.dataset.p); return c; }); });
+$('#charEyes').addEventListener('click', (e) => { const b = e.target.closest('[data-eyes]'); if (b) setChar((c) => { c[studioRoom].e = b.dataset.eyes; return c; }); });
+$('#floatSwitch').addEventListener('click', () => setChar((c) => { c.float = !c.float; return c; }));
+$('#blinkSwitch').addEventListener('click', () => setChar((c) => { c.blink = !c.blink; return c; }));
 for (const k of ['tightPerDay', 'overMid', 'overHigh']) {
   $(`#${k}`).addEventListener('change', (e) => {
     const v = Math.max(0, Math.round(Number(e.target.value) || 0));
@@ -1097,7 +1116,7 @@ for (const k of ['tightPerDay', 'overMid', 'overHigh']) {
 }
 // กลับมาที่ Hub (เช่นกดกลับจากแอป หรือสลับแอป) แล้วข้อมูลเก่ากว่า 2 นาที ให้ดึงใหม่เงียบ ๆ
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && (!syncedAt || Date.now() - syncedAt > 120000)) refresh();
+  if (document.visibilityState === 'visible' && (!syncedAt || Date.now() - syncedAt > 120000)) { refresh(); loadUsage(); }
 });
 window.addEventListener('pageshow', (e) => { if (e.persisted) refresh(); });
 
@@ -1106,7 +1125,7 @@ window.addEventListener('pageshow', (e) => { if (e.persisted) refresh(); });
 let pressTimer = null;
 let pressFired = false;
 document.addEventListener('pointerdown', (e) => {
-  const card = e.target.closest('a.app');
+  const card = e.target.closest('a.app, a.tab');
   const app = card && APPS.find((a) => a.path === card.getAttribute('href') && a.longPress);
   pressFired = false;
   if (!app) return;
@@ -1118,12 +1137,12 @@ document.addEventListener('pointerdown', (e) => {
     location.href = app.longPress;
   }, 500);
 });
-const cancelPress = () => { clearTimeout(pressTimer); document.querySelectorAll('.app.pressing').forEach((c) => c.classList.remove('pressing')); };
+const cancelPress = () => { clearTimeout(pressTimer); document.querySelectorAll('.app.pressing, .tab.pressing').forEach((c) => c.classList.remove('pressing')); };
 ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => document.addEventListener(ev, cancelPress));
 document.addEventListener('scroll', cancelPress, true);
 // กดค้างจนเปิดทางลัดแล้ว ไม่ต้องเปิดหน้าแอปซ้ำ
-document.addEventListener('click', (e) => { if (pressFired && e.target.closest('a.app')) { e.preventDefault(); e.stopPropagation(); pressFired = false; } }, true);
-document.addEventListener('contextmenu', (e) => { if (e.target.closest('a.app')) e.preventDefault(); });
+document.addEventListener('click', (e) => { if (pressFired && e.target.closest('a.app, a.tab')) { e.preventDefault(); e.stopPropagation(); pressFired = false; } }, true);
+document.addEventListener('contextmenu', (e) => { if (e.target.closest('a.app, a.tab')) e.preventDefault(); });
 
 /* ---------- เปลี่ยนหน้าให้สมูท ---------- */
 // ชื่อแอปบนการ์ดที่กดเท่านั้นที่ได้ view-transition-name (ห้ามซ้ำในหน้า) แล้วเลื่อนไปเป็นหัวข้อของแอป
@@ -1141,7 +1160,8 @@ function prefetchApps() {
   prefetched = true;
   setTimeout(() => {
     for (const a of APPS) {
-      for (const href of [a.path, `${a.path}styles.css`, `${a.path}app.js`]) {
+      // แชตเป็นแค่หน้าครอบ iframe (ไม่มี styles.css / app.js) โหลดแค่หน้าเดียว
+      for (const href of a.summary ? [a.path, `${a.path}styles.css`, `${a.path}app.js`] : [a.path]) {
         const l = document.createElement('link');
         l.rel = 'prefetch';
         l.href = href;
@@ -1175,7 +1195,7 @@ function morningBrief() {
 
 /* ---------- ตัวละครมีอารมณ์ (alpha-face.js) ---------- */
 // หน้าแรก + avatar หน้าสรุป เปลี่ยนอารมณ์ตามสรุป · หน้าซิงก์ = ท่าทำงาน
-const faces = [mountFace($('#alpha .char')), mountFace($('#rpAvatar .char'))];
+const faces = []; // ตัวละครแบบรูปเดิม (alpha-face.js) ไม่ใช้บนหน้าแรกแล้ว · อารมณ์ยังคำนวณไว้ให้หน้ารายงาน
 let curEmotion = null;
 function setEmotion(e) {
   if (e === curEmotion) return;
@@ -1186,11 +1206,16 @@ function setEmotion(e) {
 
 /* ---------- เริ่ม ---------- */
 // ข้อความคงที่ในหน้า HTML ดึงจาก messages.js
-$('#orbBtn').setAttribute('aria-label', M.alphaLabel);
-$('#headline').setAttribute('aria-label', M.headlineHint);
-$('#cmdInput').placeholder = M.input.placeholder;
 $('#syncSkip').textContent = M.sync.skip;
+// ไอคอน (Font Awesome) + ตัวละครที่ไม่เปลี่ยนตามข้อมูล
+for (const id of ['reportBack', 'settingsBack', 'logQueueBack']) $(`#${id}`).innerHTML = icon('arrow-left');
+$('#settingsBtn').innerHTML = icon('sliders');
+$('#speakBtn').innerHTML = icon('volume-high');
+$('#rpAvatar').innerHTML = Char.bot('general', charCfg);
+renderModeBtn();
+Char.applyMotion(charCfg);
 renderHome();
+loadUsage();
 if (location.hash === '#report') openReport({ push: false });
 else if (location.hash === '#settings') openSettings();
 else if (needWelcome()) showSync();

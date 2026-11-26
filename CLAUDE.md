@@ -11,8 +11,11 @@
 | ไฟล์ | หน้าที่ |
 |---|---|
 | `config.js` | รายการแอปทั้งหมด (แก้ที่นี่ที่เดียวเมื่อเพิ่มแอป) |
-| `hub.js` | หน้าแรก, หน้า welcome (HUD), หน้ารายงาน, โหลด summary แบบขนาน + cache + timeout ต่อแอป, จับเวลาทุก request |
-| `commands.js` | คำสั่งสำเร็จรูปของช่องสั่งงาน (จับคำสำคัญ ไม่ใช้ AI) |
+| `hub.js` | หน้าแรก (สรุปประจำวัน + popup, usage, แจ้งเตือน, แถบเมนูล่าง), หน้า welcome (HUD), หน้ารายงาน, หน้าตั้งค่า (+ ตั้งค่าตัวละคร), โหลด summary แบบขนาน + cache + timeout ต่อแอป, จับเวลาทุก request |
+| `soft.css` | ธีม Soft Indigo ของหน้า Alpha (โหลดต่อจาก styles.css · เปลี่ยน token สีของทุกหน้าซ้อน + หน้าแรกแบบใหม่) · สว่าง/มืดตาม `alpha.mode` |
+| `alpha-character.js` | ตัวละครลูกบอลไล่สี 1 ห้องแชต = 1 ตัว (general/money/projects) · ตารางสี/ตาต้องตรงกับ repo alpha → `app/bot.js` และ `ops/api.ts` |
+| `icons.js` | ไอคอน Font Awesome Free (CC BY 4.0) ฝังเป็น SVG · `icon('house')` |
+| `commands.js` | คำสั่งสำเร็จรูปของช่องสั่งงาน (ช่องสั่งงานเอาออกจากหน้าแรกแล้ว บอสสั่งงานผ่านแชต · ไฟล์ยังอยู่ ยังไม่มีที่เรียกใช้) |
 | `messages.js` | ข้อความบนหน้าจอของ AI (ผู้หญิง ลงท้าย ค่ะ/คะ) |
 | `messages/th.json` | ประโยคสรุปแบบพูดทั้งหมด (ตาราง key อยู่ที่ `messages/README.md`) |
 | `speech.js` | แต่งประโยคสรุปจาก `facts` ของแต่ละแอป: เลือก key, สุ่มแบบ seed รายวัน, กันซ้ำ, หัว/ท้าย |
@@ -25,7 +28,12 @@
 | `templates/summary.template.js` | template สำหรับ summary.js ของแอปใหม่ |
 
 localStorage ที่ Alpha ใช้: `hub.cache.v1` (ผลสรุปล่าสุด) · `hub.tease` / `hub.listens` (แซว) · `alpha.logWrite` / `alpha.logQueue` / `alpha.logHistory` / `alpha.learnedCategory` (จดรายรับรายจ่าย) · `hub.voice` (โหมดเสียง) · `hub.speech.v1` (ประโยคที่ใช้ล่าสุดของแต่ละ key) · `alpha.settings` (ตั้งค่า) · sessionStorage `hub.session` (มี = แอปเปิดค้างอยู่ ไม่โชว์หน้า welcome ซ้ำ) · `hub.perf` (เวลาโหลด 30 ครั้งล่าสุด แสดงท้ายหน้าตั้งค่า) ·
-`alpha.theme` (ธีมสี — fuel-logger/finance-app อ่าน key นี้ใน theme.js ของตัวเองด้วย ดูตาราง apps ใน `alpha-theme.js`)
+`alpha.theme` (ธีมสี — ตอนนี้ใช้กับ fuel-logger/finance-app เท่านั้น หน้า Alpha ใช้ Soft Indigo เสมอ · ดูตาราง apps ใน `alpha-theme.js`) ·
+`alpha.character` (สี/ตา/ลอย/กะพริบของตัวละคร + `at` เวลาแก้ล่าสุด · ซิงก์กับ PC ที่ `/api/character` → repo alpha `data/character.json`) ·
+`hub.usage` (usage % ล่าสุดจาก PC `/api/usage` แสดงตอน PC ปิด) · ที่อยู่ PC มาจาก `chat.url` (ตั้งในหน้าแชต)
+
+PC (repo alpha `ops/api.ts`) อนุญาตให้ origin `https://gpicha3.github.io` เรียกได้เฉพาะ `/api/usage` และ `/api/character` (CORS)
+จุดเขียว "Alpha Online" / ปุ่มแชต = เรียก `/api/usage` สำเร็จ
 
 ไฟล์อื่น: `alpha-theme.js` (ธีม 6 ชุด โหลดใน head) · `assets/alpha-character.png` (ตัวละคร ห้ามแก้หน้า/ผม) ·
 `assets/alpha-shirt-mask.png` (mask เฉพาะเสื้อ ใช้ tint สีตามธีม)
