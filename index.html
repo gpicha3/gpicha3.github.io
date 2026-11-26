@@ -196,6 +196,11 @@
     </div>
     <div class="set-label" id="connLabel"></div>
     <div class="set-stack" id="conns"></div>
+    <div class="set-card" style="margin-top:10px">
+      <label class="set-col" for="chatUrl"><span class="conn-head"><b>แชตน้องอัล · ที่อยู่หน้าแชตบน PC</b><span class="conn-state" id="chatState"></span></span>
+        <input id="chatUrl" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://ชื่อเครื่อง.xxxx.ts.net/app/"></label>
+      <p class="set-hint" id="chatHint">ดูจาก Tailscale บน PC · ต้องเป็น https และลงท้ายด้วย /app/ · เก็บไว้ในเครื่องนี้เท่านั้น</p>
+    </div>
     <div class="set-label" id="alertLabel"></div>
     <div class="set-card">
       <label class="set-row" for="paceMin"><span id="paceLabel"></span>

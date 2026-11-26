@@ -37,24 +37,19 @@
   /* แชตต่อได้แล้ว: ซ่อนแถบนี้ ให้หน้าแชตเต็มจอ (หน้าแชตมีปุ่มกลับ Hub และเผื่อแถบสถานะ iPhone เอง) */
   body.full{position:fixed;inset:0;height:auto}
   body.full .bar{display:none}
-  .panel .link{background:none;color:var(--brand);padding:4px 10px}
+  .panel .link{justify-self:center;color:var(--brand);font-size:13px;font-weight:600;text-decoration:none;padding:4px 10px}
+  .panel .go{justify-self:center;font-weight:600;color:#fff;background:var(--brand);border-radius:99px;padding:10px 22px;text-decoration:none}
 </style>
 </head>
 <body>
 <header class="bar">
   <a href="/" aria-label="กลับ Hub">‹ Hub</a>
   <h1><span class="dot" id="dot"></span>น้องอัล</h1>
-  <button id="setBtn">ตั้งค่า</button>
+  <a href="/#settings">ตั้งค่า</a>
 </header>
 <main>
   <iframe id="frame" title="แชตน้องอัล" allow="clipboard-write" hidden></iframe>
   <div class="panel" id="msg"><b>กำลังเชื่อมต่อ…</b></div>
-  <form class="panel" id="setup" hidden>
-    <b>ที่อยู่หน้าแชต</b>
-    <input id="url" type="url" inputmode="url" placeholder="https://ชื่อเครื่อง.xxxx.ts.net/app/" required>
-    <small>ดูจาก Tailscale บน PC · ต้องเป็น https และลงท้ายด้วย /app/ · เก็บไว้ในเครื่องนี้เท่านั้น</small>
-    <button>บันทึก</button>
-  </form>
 </main>
 <script>
 (() => {
@@ -65,7 +60,6 @@
 
   function show(which, text) {
     $('frame').hidden = which !== 'frame';
-    $('setup').hidden = which !== 'setup';
     $('msg').hidden = which !== 'msg';
     document.body.classList.toggle('full', which === 'frame');
     if (text) $('msg').innerHTML = text;
@@ -78,7 +72,8 @@
   }
   async function connect() {
     const url = get();
-    if (!url) { state = 'setup'; $('dot').className = 'dot'; show('setup'); $('url').focus(); return; }
+    // ที่อยู่หน้าแชตตั้งที่หน้าตั้งค่าของ Alpha (การเชื่อมต่อ → แชตน้องอัล) ที่เดียว
+    if (!url) { state = 'setup'; $('dot').className = 'dot'; show('msg', '<b>ยังไม่ได้ตั้งที่อยู่หน้าแชต</b><small>ใส่ที่อยู่จาก Tailscale บน PC ที่หน้าตั้งค่าของ Alpha<br>หมวดการเชื่อมต่อ → แชตน้องอัล</small><a class="go" href="/#settings">ไปหน้าตั้งค่า</a>'); return; }
     if (state === 'frame') return;
     show('msg', '<b>กำลังเชื่อมต่อ…</b>');
     if (await online(url)) {
@@ -87,20 +82,10 @@
       show('frame');
     } else {
       state = 'off'; $('dot').className = 'dot off';
-      show('msg', '<b>แชตออฟไลน์</b><small>PC ปิดอยู่ หรือเครื่องนี้ไม่ได้ต่อ Tailscale<br>ส่วนอื่นของ Hub ใช้ได้ตามปกติ</small><button id="retry">ลองใหม่</button><button class="link" id="reset">เปลี่ยนที่อยู่หน้าแชต</button>');
+      show('msg', '<b>แชตออฟไลน์</b><small>PC ปิดอยู่ หรือเครื่องนี้ไม่ได้ต่อ Tailscale<br>ส่วนอื่นของ Hub ใช้ได้ตามปกติ</small><button id="retry">ลองใหม่</button><a class="link" href="/#settings">เปลี่ยนที่อยู่หน้าแชต</a>');
       $('retry').onclick = connect;
-      $('reset').onclick = () => $('setBtn').click();
     }
   }
-  $('setup').addEventListener('submit', e => {
-    e.preventDefault();
-    let v = $('url').value.trim();
-    if (!/^https:\/\//.test(v)) { alert('ต้องขึ้นต้นด้วย https://'); return; }
-    if (!v.endsWith('/')) v += '/';
-    try { localStorage.setItem(KEY, v); } catch (err) {}
-    state = ''; $('frame').removeAttribute('src'); connect();
-  });
-  $('setBtn').addEventListener('click', () => { $('url').value = get(); state = 'setup'; show('setup'); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden && state === 'off') connect(); });
   connect();
 })();

@@ -218,6 +218,7 @@ async function loadUsage() {
   } catch { chatOnline = false; } finally { clearTimeout(t); }
   renderUsage();
   renderTabbar();
+  if (!$('#settings').hidden) renderChatConn();
   // PC ออนไลน์: ดึงค่าตัวละครที่อาจตั้งจากเครื่องอื่น
   if (chatOnline) Char.syncWithPc().then((c) => { if (c && c.at !== charCfg.at) { charCfg = c; Char.refreshAll(c); renderHome(); } });
 }
@@ -995,6 +996,7 @@ function renderSettings() {
   $('#speechHint').textContent = S.speechHint;
   for (const k of ['tightPerDay', 'overMid', 'overHigh']) $(`#${k}`).value = settings[k];
   renderStudio();
+  renderChatConn();
   $('#briefLabel').textContent = S.briefLabel;
   $('#briefHint').textContent = S.briefHint;
   $('#briefSwitch').setAttribute('aria-checked', String(!!settings.morningBrief));
@@ -1077,6 +1079,32 @@ $('#paceMin').addEventListener('change', (e) => {
   saveSettings();
   renderHome();
 });
+/* ---------- ที่อยู่หน้าแชตบน PC (Tailscale) · key "chat.url" ใช้ร่วมกับหน้า /chat/ ---------- */
+// ใช้ทั้งเปิดหน้าแชต และเรียก /api/usage, /api/character บน PC
+const CHAT_KEY = 'chat.url';
+const chatUrlNow = () => { try { return localStorage.getItem(CHAT_KEY) || ''; } catch { return ''; } };
+let chatMsg = null;
+function renderChatConn() {
+  const v = chatUrlNow();
+  if (document.activeElement !== $('#chatUrl')) $('#chatUrl').value = v;
+  const st = $('#chatState');
+  st.className = `conn-state ${v && chatOnline ? 'on' : 'off'}`;
+  st.textContent = !v ? 'ยังไม่ได้ตั้ง' : chatOnline ? 'ออนไลน์' : 'ออฟไลน์';
+  $('#chatHint').textContent = chatMsg || 'ดูจาก Tailscale บน PC · ต้องเป็น https และลงท้ายด้วย /app/ · เก็บไว้ในเครื่องนี้เท่านั้น';
+  $('#chatHint').style.color = chatMsg && /ต้อง/.test(chatMsg) ? 'var(--rd)' : '';
+}
+$('#chatUrl').addEventListener('change', async (e) => {
+  let v = e.target.value.trim();
+  if (v && !/^https:\/\//.test(v)) { chatMsg = 'ต้องขึ้นต้นด้วย https:// ค่ะ'; renderChatConn(); return; }
+  if (v && !v.endsWith('/')) v += '/';
+  try { if (v) localStorage.setItem(CHAT_KEY, v); else localStorage.removeItem(CHAT_KEY); } catch { /* ignore */ }
+  chatMsg = v ? 'กำลังลองเชื่อมต่อ…' : null;
+  renderChatConn();
+  await loadUsage();
+  chatMsg = v ? (chatOnline ? 'เชื่อมต่อได้แล้วค่ะ' : 'บันทึกแล้ว แต่ยังต่อ PC ไม่ได้ (PC ปิด หรือเครื่องนี้ไม่ได้ต่อ Tailscale)') : null;
+  renderChatConn();
+});
+
 /* ---------- ตั้งค่าตัวละคร (สี · ดวงตา · ลอย · กะพริบ) แยกต่อห้องแชต ---------- */
 // เก็บบนเครื่อง (alpha.character) + ส่งขึ้น PC (repo alpha → data/character.json) ให้หน้าแชตใช้ค่าเดียวกัน
 let studioRoom = 'general';

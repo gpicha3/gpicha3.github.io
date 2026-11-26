@@ -30,7 +30,7 @@
 localStorage ที่ Alpha ใช้: `hub.cache.v1` (ผลสรุปล่าสุด) · `hub.tease` / `hub.listens` (แซว) · `alpha.logWrite` / `alpha.logQueue` / `alpha.logHistory` / `alpha.learnedCategory` (จดรายรับรายจ่าย) · `hub.voice` (โหมดเสียง) · `hub.speech.v1` (ประโยคที่ใช้ล่าสุดของแต่ละ key) · `alpha.settings` (ตั้งค่า) · sessionStorage `hub.session` (มี = แอปเปิดค้างอยู่ ไม่โชว์หน้า welcome ซ้ำ) · `hub.perf` (เวลาโหลด 30 ครั้งล่าสุด แสดงท้ายหน้าตั้งค่า) ·
 `alpha.theme` (ธีมสี — ตอนนี้ใช้กับ fuel-logger/finance-app เท่านั้น หน้า Alpha ใช้ Soft Indigo เสมอ · ดูตาราง apps ใน `alpha-theme.js`) ·
 `alpha.character` (สี/ตา/ลอย/กะพริบของตัวละคร + `at` เวลาแก้ล่าสุด · ซิงก์กับ PC ที่ `/api/character` → repo alpha `data/character.json`) ·
-`hub.usage` (usage % ล่าสุดจาก PC `/api/usage` แสดงตอน PC ปิด) · ที่อยู่ PC มาจาก `chat.url` (ตั้งในหน้าแชต)
+`hub.usage` (usage % ล่าสุดจาก PC `/api/usage` แสดงตอน PC ปิด) · ที่อยู่ PC มาจาก `chat.url` (ตั้งที่หน้าตั้งค่า → การเชื่อมต่อ → แชตน้องอัล · หน้า /chat/ ใช้ key เดียวกัน)
 
 PC (repo alpha `ops/api.ts`) อนุญาตให้ origin `https://gpicha3.github.io` เรียกได้เฉพาะ `/api/usage` และ `/api/character` (CORS)
 จุดเขียว "Alpha Online" / ปุ่มแชต = เรียก `/api/usage` สำเร็จ
