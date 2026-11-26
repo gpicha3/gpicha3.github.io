@@ -55,6 +55,20 @@
 </main>
 <script>
 (() => {
+  // iPhone home-screen app: the page can come up shorter than the screen (status-bar bug), leaving an empty band
+  // under the chat. Size the page to the real screen height instead (portrait/landscape aware).
+  const standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+  function fitScreen() {
+    if (!standalone || !screen.height) return;
+    const portrait = innerHeight >= innerWidth;
+    const h = portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
+    if (h > innerHeight) { document.body.style.bottom = 'auto'; document.body.style.height = h + 'px'; }
+    else { document.body.style.bottom = ''; document.body.style.height = ''; }
+  }
+  fitScreen();
+  addEventListener('resize', fitScreen);
+  addEventListener('orientationchange', () => setTimeout(fitScreen, 300));
+
   const KEY = 'chat.url';
   const $ = id => document.getElementById(id);
   const get = () => { try { return localStorage.getItem(KEY) || ''; } catch (e) { return ''; } };
